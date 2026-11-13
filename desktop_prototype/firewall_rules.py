@@ -16,14 +16,14 @@ import sys
 import tempfile
 from typing import Callable
 
-from traffic_policy import normalize_executable
+from traffic_policy import executable_key, normalize_executable
 
 RULE_GROUP = "1VPN Desktop Lab"
 
 
 def rule_name(executable: str) -> str:
     # Identificador determinista y propio. No se permite borrado por patrón.
-    key = os.path.normcase(os.path.normpath(executable)).casefold().encode("utf-8")
+    key = executable_key(executable).encode("utf-8")
     return "OneVPNLab-Block-" + hashlib.sha256(key).hexdigest()[:20]
 
 
@@ -101,7 +101,7 @@ class FirewallManager:
 
     def block(self, executable: str) -> str:
         exe = normalize_executable(executable)
-        if os.path.normcase(exe) == os.path.normcase(sys.executable):
+        if executable_key(exe) == executable_key(sys.executable):
             raise ValueError("No se puede bloquear el ejecutable del propio motor")
         system32 = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "System32")
         if os.path.normcase(exe).startswith(os.path.normcase(system32) + os.sep):
@@ -109,7 +109,7 @@ class FirewallManager:
         name = rule_name(exe)
         self._require_admin()  # No registrar intenciones si faltan privilegios.
         managed = self._load()
-        if name in managed and os.path.normcase(managed[name]) != os.path.normcase(exe):
+        if name in managed and executable_key(managed[name]) != executable_key(exe):
             raise RuntimeError("Colisión de nombre de regla")
         display = f"1VPN Desktop Lab | Bloquear {Path(exe).name} [{name[-8:]}]"
         script = (

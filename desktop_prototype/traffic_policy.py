@@ -27,6 +27,12 @@ def normalize_executable(path: str) -> str:
     return str(p.resolve())
 
 
+def executable_key(path: str) -> str:
+    """Comparación coherente para rutas de ejecutables (alias/variantes de mayúsculas)."""
+    p = Path(path.strip().strip('"')).expanduser()
+    return os.path.normcase(os.path.normpath(str(p.resolve(strict=False)))).casefold()
+
+
 @dataclass(frozen=True)
 class AppPolicy:
     executable: str
@@ -54,7 +60,7 @@ class PolicyStore:
 
     def save(self, rules: list[AppPolicy]):
         validated = [r.validated(False) for r in rules]
-        paths = [os.path.normcase(os.path.normpath(r.executable)) for r in validated]
+        paths = [executable_key(r.executable) for r in validated]
         if len(paths) != len(set(paths)):
             raise ValueError("Hay aplicaciones duplicadas")
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -73,10 +79,10 @@ class PolicyStore:
 
     def upsert(self, rule: AppPolicy):
         rule = rule.validated()
-        rules = [r for r in self.load() if os.path.normcase(r.executable) != os.path.normcase(rule.executable)]
+        rules = [r for r in self.load() if executable_key(r.executable) != executable_key(rule.executable)]
         rules.append(rule)
         self.save(rules)
 
     def delete(self, executable: str):
-        rules = [r for r in self.load() if os.path.normcase(r.executable) != os.path.normcase(executable)]
+        rules = [r for r in self.load() if executable_key(r.executable) != executable_key(executable)]
         self.save(rules)
