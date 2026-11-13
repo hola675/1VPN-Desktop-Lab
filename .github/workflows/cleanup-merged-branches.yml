@@ -1,0 +1,62 @@
+name: Limpiar ramas ya fusionadas
+
+# Se ejecuta después de cada actualización de main.
+# SOLO elimina ramas cuyo commit final está incorporado en main.
+# Las ramas con cambios pendientes se conservan para evitar pérdida de datos.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mantenimiento-ramas-main
+  cancel-in-progress: false
+
+jobs:
+  eliminar-fusionadas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Obtener main y sus referencias
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Eliminar solamente ramas totalmente integradas
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+
+          git for-each-ref --format='%(refname:short)' refs/remotes/origin |
+          while IFS= read -r remote_ref; do
+            branch="${remote_ref#origin/}"
+            if [[ "$branch" == "main" || "$branch" == "HEAD" || -z "$branch" ]]; then
+              continue
+            fi
+
+            if git merge-base --is-ancestor "$remote_ref" refs/remotes/origin/main; then
+              echo "Eliminando rama fusionada: $branch"
+              if gh api -X DELETE "repos/$GH_REPO/git/refs/heads/$branch" > /dev/null; then
+                echo "Rama eliminada: $branch"
+              else
+                # Posible carrera con otro mantenimiento o limpieza automática.
+                if gh api "repos/$GH_REPO/branches/$branch" > /dev/null 2>&1; then
+                  echo "::error::No se pudo eliminar $branch; verifica permisos de Actions."
+                  exit 1
+                fi
+                echo "La rama ya no existe: $branch"
+              fi
+            else
+              echo "::warning::Se conserva rama NO fusionada: $branch"
+            fi
+          done
