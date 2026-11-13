@@ -1,4 +1,4 @@
-"""1VPN Desktop Lab v0.4: motor HTTP/SOCKS5 y panel firewall integrados."""
+"""1VPN Desktop Lab v0.4.1a: cuenta 1VPN separada de credenciales del proxy."""
 from __future__ import annotations
 
 import os
@@ -14,6 +14,8 @@ from network_engine import NetworkEngine
 from control_panel import TrafficControlPanel
 from server_catalog import COUNTRIES, refresh_catalogue, snapshot_catalogue
 from server_selector import AutoSelector
+from account_panel import AccountPanel
+from account_auth import AccountSession
 
 BG = "#0d1524"
 PANEL = "#142238"
@@ -28,12 +30,14 @@ DEFAULT_LOCAL_PORT = "8899"
 class DesktopApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("1VPN Desktop Lab — Servidores inteligentes v0.4.1")
+        self.root.title("1VPN Desktop Lab — Servidores inteligentes v0.4.1a")
         self.root.geometry("1080x780")
         self.root.minsize(960, 710)
         self.root.configure(bg=BG)
         self.engine = NetworkEngine(self._log)
         self.panel = None
+        self.account_panel = None
+        self.account_session: AccountSession | None = None
         self.selector: AutoSelector | None = None
         self._scanning = False
         self._manual_host = ""
@@ -56,7 +60,7 @@ class DesktopApp:
     def _layout(self):
         shell = tk.Frame(self.root, bg=BG, padx=32, pady=22)
         shell.pack(fill="both", expand=True)
-        self._label(shell, "DESKTOP LAB  /  v0.4.1  /  AUTO + HTTP + SOCKS5 + FIREWALL", ACCENT, 11, True).pack(anchor="w")
+        self._label(shell, "DESKTOP LAB  /  v0.4.1a  /  AUTO + HTTP + SOCKS5 + CUENTA", ACCENT, 11, True).pack(anchor="w")
         self._label(shell, "Proxy y políticas de tráfico para Windows", TEXT, 23, True).pack(anchor="w", pady=(9, 4))
         self._label(
             shell, "Selección Free automática con preferencia por Singapur. No modifica Wintun ni rutas.",
@@ -75,8 +79,8 @@ class DesktopApp:
         rows = [
             ("host", "Servidor proxy HTTPS remoto", "", False),
             ("port", "Puerto remoto (TLS)", "443", False),
-            ("username", "Usuario remoto (opcional)", "", False),
-            ("password", "Contraseña (solo memoria)", "", True),
+            ("username", "Usuario del PROXY (no email de cuenta)", "", False),
+            ("password", "Clave del PROXY (no clave de cuenta)", "", True),
             ("local_port", "Puerto HTTP local (0 = automático)", DEFAULT_LOCAL_PORT, False),
             ("socks_port", "Puerto SOCKS5 local (0 = automático)", "1080", False),
         ]
@@ -112,6 +116,14 @@ class DesktopApp:
                                   bg=PANEL, fg=ACCENT, relief="flat", state="disabled",
                                   font=("Segoe UI", 10, "bold"), padx=10, pady=11)
         self.scan_btn.pack(side="left", padx=(10, 0))
+        auth_bar = tk.Frame(shell, bg=BG)
+        auth_bar.pack(fill="x", pady=(4, 3))
+        self.account_btn = tk.Button(auth_bar, text="INICIAR SESIÓN 1VPN (EMAIL)", command=self.open_account,
+                                     bg=PANEL, fg=ACCENT, relief="flat", font=("Segoe UI", 10, "bold"),
+                                     padx=11, pady=7)
+        self.account_btn.pack(side="left")
+        self.account_status = self._label(auth_bar, "Cuenta 1VPN: no conectada · Proxy: credenciales independientes", MUTED, 9)
+        self.account_status.pack(side="left", padx=12)
         self.status = self._label(shell, "Desconectado", MUTED, 11, True)
         self.status.pack(anchor="w", pady=(7, 7))
         self.address = self._label(shell, "Dirección local: —", TEXT, 11, True)
@@ -262,6 +274,26 @@ class DesktopApp:
             self._log(f"No se pudo abrir el servicio local: {type(error).__name__}")
             messagebox.showerror("No se pudo iniciar", str(error))
 
+    def _set_account_session(self, session: AccountSession | None):
+        self.account_session = session
+        if session is None:
+            self.account_status.configure(text="Cuenta 1VPN: sesión local cerrada · Proxy independiente", fg=MUTED)
+        else:
+            self.account_status.configure(text=f"Cuenta 1VPN: {session.email} · {session.tier}", fg=ACCENT)
+        # No sustituir el usuario ni la contraseña del PROXY por email/password.
+        # La API de cuentas devuelve un token específico de sesión Xray; no se
+        # promete que sea aceptado por un proxy HTTPS de navegador.
+
+    def open_account(self):
+        if self.account_panel is not None and self.account_panel.win.winfo_exists():
+            self.account_panel.win.lift()
+            return
+        self.account_panel = AccountPanel(self.root, self._set_account_session)
+        if self.account_session is not None:
+            self.account_panel.session = self.account_session
+            self.account_panel.status.configure(
+                text=f"Sesión en memoria: {self.account_session.email} · {self.account_session.tier}", fg=ACCENT)
+
     def open_traffic_control(self):
         if self.panel and self.panel.win.winfo_exists():
             self.panel.win.lift()
@@ -310,6 +342,7 @@ class DesktopApp:
 
     def close(self):
         self.disconnect()
+        self.account_session = None
         self.root.destroy()
 
 

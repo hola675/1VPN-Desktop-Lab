@@ -1,6 +1,6 @@
 # 1VPN Desktop Lab
 
-**Versión de desarrollo: 0.3.0-alpha · 2026-11-13**  
+**Versión de desarrollo: v0.4.1a (parche de autenticación) · 2026-11-13**  
 **Estado:** proxy HTTP local para redirigir las solicitudes de aplicaciones compatibles hacia un **proxy HTTPS remoto autorizado**, sin usar Wintun/TUN ni modificar la configuración global de Windows.
 
 > **Proyecto experimental independiente. No es un cliente oficial de 1VPN y no equivale a una VPN del sistema.** No incorpora servidores, tokens o credenciales del proveedor. El usuario es responsable de usar servidores y credenciales para los que tenga autorización.
@@ -170,3 +170,26 @@ te correspondan legítimamente: no están incluidas en la aplicación.
 **Límites de las pruebas:** la suite local usa servidores TLS efímeros y mocks;
 no realiza conexiones con la infraestructura real de 1VPN. La validación de
 la latencia real, región elegida y continuidad debe completarse en Windows.
+
+
+## v0.4.1a — Inicio de sesión de CUENTA separado del PROXY (2026-11-13)
+
+Esta revisión corrige la confusión entre **cuenta 1VPN** y **credenciales del proxy HTTPS**:
+
+- El botón **INICIAR SESIÓN 1VPN (EMAIL)** abre el formulario de la cuenta.
+- El campo **Correo electrónico** se envía como clave JSON `email` y la **contraseña exacta** (no se recorta ni modifica) como `password`. Si la API solicita 2FA, se envía el campo adicional `token` con el código introducido. El endpoint de cuenta es `POST https://1vpn.org/api/login/?type=xray` y se usan los dominios alternativos documentados por la app oficial cuando el principal no es alcanzable. Encabezado `Client-Type: app`. TLS se valida normalmente y **no se siguen redirecciones**.
+- Al responder la API con `sessionAuthToken` e `isPremium` se muestra la cuenta y el tipo de plan. **La sesión solo permanece en memoria** durante la ejecución; la aplicación no guarda la clave ni el token en disco y no los registra en logs.
+- Los campos de la pantalla principal ahora dicen **Usuario del PROXY** y **Clave del PROXY**. Son diferentes del correo y contraseña de la cuenta. El proxy web oficial de cuentas Premium usa `username` más `sessionAuthToken`, no la contraseña de inicio de sesión; el token de tipo Xray de la app Android **no se incorpora automáticamente al proxy HTTPS de navegador** porque esa compatibilidad no se ha validado.
+- El login no cambia Wintun, firewall, rutas, servidores Free ni la configuración de los puertos HTTP/SOCKS5. En caso de fallo de red no se informa falsamente de una contraseña incorrecta.
+- Pruebas locales con respuestas simuladas: comprobar la forma exacta del POST, rechazo de email no válido, 2FA, plan Free/Premium, dominio oficial, privacidad de tokens y manejo de errores. **No se ha probado con credenciales reales de una cuenta.**
+
+### Ejecución
+
+```powershell
+cd D:\Proyectos\1VPN-Desktop-Lab
+git switch main
+git pull --ff-only origin main
+py -3 .\desktop_prototype\app.py
+```
+
+Pulsa **INICIAR SESIÓN 1VPN (EMAIL)** para validar la cuenta. No copies la contraseña de la cuenta en el campo **Clave del PROXY**: esa clave autentica un servicio diferente. El inicio de sesión de cuenta por sí solo no habilita acceso Premium a los proxies de navegador; esa integración debe validarse por separado.
