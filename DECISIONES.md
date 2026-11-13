@@ -16,3 +16,10 @@
 - Restitución WinINET al desconectar; si el usuario cambia manualmente el proxy mientras está conectado, el código no pisa la nueva configuración.
 - En cierre forzado puede quedar un proxy local inválido; al relanzar se intenta recuperar el estado anterior. Si no es posible, revisar manualmente **Configuración > Red e Internet > Proxy**.
 - Primer test en máquina de laboratorio, nunca directamente en la red corporativa/proxy de producción.
+| DEC-007 | 2026-11-13 | En v0.2 retirar de la interfaz la opción de cambio WinINET; no tocar Wintun ni DNS, rutas o proxy global. | El usuario prioriza tráfico selectivo a través de `127.0.0.1:puerto`, sin interferir con Wintun instalado. |
+| DEC-008 | 2026-11-13 | Agregar puerto fijo configurable (8899 por defecto, 0 automático), comprobar salida por CONNECT explícito y distinguir listener de salida validada. | Evitar el falso positivo «Conectado» cuando solo hay un socket local abierto. |
+| DEC-009 | 2026-11-13 | Migración conservadora desde v0.1: advertir sobre respaldos WinINET antiguos y no restaurar cambios ajenos automáticamente. | Preservar las preferencias del usuario y evitar sobrescrituras inesperadas. |
+| DEC-010 | 2026-11-13 | No añadir credenciales del proveedor a repositorios públicos, aunque aparezcan en el código fuente oficial. | Evitar exposición y dependencia de credenciales ajenas y facilitar autorización explícita. |
+
+| DEC-011 | 2026-11-13 | Adoptar como referencia técnica ProxiFyre/NDISAPI para redirección transparente opt-in por proceso; descartar `rookmoot/proxifier` como interceptor. | El proyecto rookmoot es un rotador HTTP de scraping, no un controlador de conexiones Windows. |
+| DEC-012 | 2026-11-13 | Crear adaptador local SOCKS5 CONNECT -> HTTP CONNECT solo TCP, separado del motor WinINET/Wintun. | ProxiFyre consume SOCKS5 mientras que el laboratorio usa HTTP sobre TLS remoto. UDP no queda cubierto. |

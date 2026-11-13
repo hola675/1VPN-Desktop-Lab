@@ -1,0 +1,39 @@
+name: Prototipo Windows - tests y EXE
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Validar sintaxis y módulos
+        shell: pwsh
+        run: python -m compileall -q desktop_prototype
+      - name: Suite de pruebas
+        shell: pwsh
+        working-directory: desktop_prototype
+        run: python -m unittest discover -s tests -v
+      - name: Crear exe sin driver
+        shell: pwsh
+        working-directory: desktop_prototype
+        run: |
+          python -m pip install pyinstaller==6.16.0
+          python -m PyInstaller --noconfirm --clean --windowed --onefile --name 1VPN-Desktop-Lab app.py
+      - name: Guardar artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1VPN-Desktop-Lab-v0.4-dev-win-x64
+          path: desktop_prototype/dist/1VPN-Desktop-Lab.exe
+          if-no-files-found: error
+          retention-days: 14

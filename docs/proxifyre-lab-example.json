@@ -1,0 +1,14 @@
+{
+  "logLevel": "Info",
+  "bypassLan": true,
+  "proxies": [
+    {
+      "appNames": ["curl.exe"],
+      "socks5ProxyEndpoint": "127.0.0.1:1080",
+      "socks5Transport": "TCP",
+      "supportedProtocols": ["TCP"],
+      "supportedAddressFamilies": ["IPv4"]
+    }
+  ],
+  "excludes": ["ProxiFyre.exe", "python.exe", "pythonw.exe", "1VPNDesktopLab.exe"]
+}

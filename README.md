@@ -1,72 +1,133 @@
 # 1VPN Desktop Lab
 
-**Versión del laboratorio:** 0.1.0 · **Fecha:** 2026-11-13  
-**Estado:** investigación estática concluida sobre fuentes públicas; prototipo Windows local creado; integración directa con 1VPN y túnel VPN completo **no implementados**.
+**Versión de desarrollo: 0.3.0-alpha · 2026-11-13**  
+**Estado:** proxy HTTP local para redirigir las solicitudes de aplicaciones compatibles hacia un **proxy HTTPS remoto autorizado**, sin usar Wintun/TUN ni modificar la configuración global de Windows.
 
-Este proyecto **no es el producto oficial de 1VPN** ni representa una conexión autorizada a su infraestructura. La investigación es sobre software público; la app creada es código original que sirve para conectar a **proxies HTTPS propios o cuyo uso hayas autorizado**.
+> **Proyecto experimental independiente. No es un cliente oficial de 1VPN y no equivale a una VPN del sistema.** No incorpora servidores, tokens o credenciales del proveedor. El usuario es responsable de usar servidores y credenciales para los que tenga autorización.
 
-## 1. Qué encontramos
+## Arquitectura de la versión 0.2
 
-- Extensión Chrome: `akcocjjpkmlniicdeemdceeajlmoabhg`.
-- Repositorio original: https://github.com/1vpn/browser-extension
-- Versión oficial más reciente comprobada: `v4.2.1`, publicada el 2026-11-03.
-- Release (ZIP compilado Chrome): https://github.com/1vpn/browser-extension/releases/tag/v4.2.1
-- App Android, ahora en: https://github.com/1vpn/app
-- Ambos proyectos originales tienen licencia GNU GPL-3.0. Si integras o distribuyes código derivado debes cumplir la licencia y sus atribuciones.
-
-## 2. Descargar referencia original en Windows
-
-Desde PowerShell 7.6 (sin ejecutar contenido de terceros):
-
-```powershell
-Set-Location .\1VPN-Desktop-Lab
-pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\Descargar-1VPN-Oficial.ps1
+```
+Aplicación que soporte proxy HTTP/HTTPS
+             |
+             | HTTP proxy (CONNECT para sitios HTTPS)
+             v
+127.0.0.1:8899   <--- solo interfaz loopback; puerto ajustable
+             |
+             | TLS verificado; Proxy-Authorization si se proporcionó
+             v
+     Proxy HTTPS remoto autorizado
+             |
+             +------------------> Internet
 ```
 
-El script consulta la última release oficial, descarga el ZIP de Chrome y el código fuente de la misma etiqueta, extrae, coteja versión del manifiesto y calcula SHA-256. Los hashes se registran localmente; para una verificación de suministro fuerte deberán cotejarse con hashes o firmas publicados independientemente por los autores.
+**No se modifican:** Wintun, TUN/TAP, interfaces de red, tablas de rutas, DNS, firewall, WinINET, WinHTTP, HKCU ni el proxy global de Windows. Solo las aplicaciones configuradas explícitamente para utilizar `http://127.0.0.1:8899` envían tráfico al proxy.
 
-Opcionalmente: agrega `-IncluirAndroid` para descargar la fuente Android. El comando **no instala ni ejecuta** la extensión.
+## Inicio en Windows
 
-## 3. Ejecutar prototipo en Windows
-
-El equipo necesita Python 3 con Tkinter (habitualmente incluido en el instalador de Python de Windows):
+Requisitos: Python 3 con Tkinter (incluido normalmente en la instalación para Windows). No hay dependencias externas para el prototipo.
 
 ```powershell
-Set-Location .\desktop_prototype
+# Si tienes v0.1 con la casilla WinINET marcada, primero pulsa
+# «DETENER Y RESTAURAR» EN LA V0.1. Cierra esa aplicación.
+
+cd .\desktop_prototype
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\Iniciar.ps1
 ```
 
-Introduce **un proxy HTTPS que tengas derecho a utilizar**, puerto, usuario y contraseña si corresponden. Pulsa **INICIAR PROXY**. Sin habilitar la opción del sistema, se crea un proxy HTTP únicamente en `127.0.0.1:puerto-aleatorio`, que se comunica cifrado por TLS con el proxy remoto. Puedes configurar un navegador para usarlo.
+Rellena servidor, puerto TLS (normalmente `443`) y, si corresponde, credenciales. Define **Puerto LOCAL** en `8899` para un valor estable o en `0` para elegir uno libre. Pulsa `INICIAR PROXY`.
 
-Si marcas la opción WinINET, el programa respalda la configuración anterior del proxy de Windows para el usuario actual, aplica `127.0.0.1:puerto`, y la restaura al desconectar. También intenta recuperarla al reiniciar tras un cierre abrupto. **Prueba primero sin marcar esa opción.**
+La pantalla indicará **«Escuchando localmente · salida sin verificar»**. Esto prueba únicamente que el puerto se abrió en la máquina. Pulsa **«COMPROBAR SALIDA»**: se abrirá un túnel CONNECT desde el puerto local hasta `api.ipify.org:443`, se verificará el TLS del destino y se leerá la IP pública observada. Esta prueba no realiza fallback a una conexión directa; si el proxy falla, la prueba también falla.
 
-No se guarda contraseña ni se incluyen credenciales de 1VPN. Se validan certificados del proxy remoto y el listener no se expone a la LAN.
+Pulsa **«COPIAR DIRECCIÓN»** para copiar `http://127.0.0.1:8899` (o el puerto elegido) y pegarlo en una aplicación compatible.
 
-### Compilar EXE (opcional)
+### Probarlo desde PowerShell
 
-Si dispones de PyInstaller ya instalado, ejecuta `desktop_prototype\Compilar-EXE.ps1`. El EXE se crea solo desde Windows. No hemos compilado ni probado un ejecutable Windows en este entorno.
-
-### Tests
+Con la aplicación ejecutándose y con puerto local 8899:
 
 ```powershell
-Set-Location .\desktop_prototype
+curl.exe --proxy http://127.0.0.1:8899 --max-time 20 'https://api.ipify.org?format=json'
+```
+
+La IP recibida **no demuestra por sí sola que la conexión sea anónima**; contrástala con la ubicación del servidor y verifica si corresponde a la salida esperada. Si se recibe HTTP `407`, la autenticación remota ha fallado. Si se recibe `502`, revisa conectividad al remoto, TLS, hostname y puerto. Si se recibe `Connection refused`, comprueba que el listener local está iniciado y el puerto coincide.
+
+### Aplicaciones compatibles
+
+Configura un proxy de tipo **HTTP** (no SOCKS5) con host `127.0.0.1` y el puerto local establecido. Puedes configurar, por ejemplo, un perfil de Firefox desde sus ajustes de red. Los navegadores y procesos que no utilicen un proxy configurado **seguirán conectando directamente**. No se redirige tráfico automáticamente, no se procesan conexiones UDP ni se bloquea el tráfico externo.
+
+### Volver al estado anterior
+
+Pulsa **«DETENER PROXY»**. Esto cierra el servidor local. Desactiva la configuración de proxy en las aplicaciones que configuraste manualmente.
+
+Si al migrar desde v0.1 existe un archivo `%LOCALAPPDATA%\1VPNDesktopLab\proxy_restore.json`, **v0.2 no lo modifica ni restaura automáticamente**: vuelve a v0.1 y pulsa `DETENER Y RESTAURAR`. No elimines manualmente ese archivo antes de restaurar tus preferencias de Windows.
+
+## Pruebas
+
+```powershell
+cd .\desktop_prototype
 py -3 -m unittest discover -s tests -v
 ```
 
-## 4. Límites reales de esta versión
+La suite cubre validación de entrada, sustitución segura de cabeceras de autenticación, escucha exclusivamente en loopback, selección de puerto, rechazo de métodos no soportados y aislamiento del comprobador de salida. Una prueba de integración utiliza un proxy TLS **simulado localmente**, generado con OpenSSL; se omite si OpenSSL CLI no está instalado.
 
-- **Es proxy, no VPN:** solo afecta apps que utilizan el proxy HTTP de Windows o la configuración manual; no cubre por sí mismo UDP, juegos, ICMP, DNS de sistema, ni aplicaciones que ignoren el proxy.
-- **No integra API 1VPN:** no se reutilizan credenciales incluidas en fuentes públicas ni se automatizan inicios de sesión o límites de acceso.
-- **No incorpora VLESS/Reality ni TUN:** eso requiere un motor confiable como Xray-core/sing-box y configuración debidamente autorizada.
-- **No es un kill switch:** si el proxy local se detiene, algunas aplicaciones pueden intentar salida directa o fallar según su configuración. No se promete anonimato.
-- **No sustituye pruebas de seguridad:** hay que auditar transporte, fugas DNS/WebRTC, pruebas de fallo, versiones y permisos antes de usarlo para tráfico sensible.
+**Pruebas realizadas el 2026-11-13:** 15/15 OK en el entorno de desarrollo, incluida la integración TLS/CONNECT. **Sin pruebas verificadas todavía contra los servidores públicos de 1VPN ni ejecución de v0.2 en Windows.**
 
-## 5. Siguiente iteración
+## Origen del estudio y licencias
 
-1. Descargar y analizar byte-a-byte el ZIP Chrome oficial en el Windows de pruebas; comparar bundle con source del tag.
-2. Validar por documentación o permiso del proveedor el uso de su backend desde un cliente Windows.
-3. Diseñar interfaz nativa Tauri o Flutter para producción, separando proveedor, estado y motor de túnel.
-4. Para *VPN real*, evaluar OneXray/Xray-core (GitHub 1vpn/app, derivado de OneXray) en Windows con TUN y servicio Windows; evitar copiar credenciales de la app Android.
-5. Pruebas de conexión y fuga, autorestauración, firma de ejecutable, actualizaciones y artefactos verificables.
+- Fuente de la extensión: <https://github.com/1vpn/browser-extension>
+- Versión oficial analizada: v4.2.1 (2026-11-03)
+- Fuente de la aplicación 1VPN/OneXray: <https://github.com/1vpn/app>
+- Los repositorios oficiales anteriores anuncian **GPL-3.0**. Si incorporas su código, cumple sus términos y conserva atribuciones. El código de ejemplo de este laboratorio no incluye copias de ese código.
+- Descarga estática de archivos de referencia: `scripts/Descargar-1VPN-Oficial.ps1`, sin ejecutar contenido descargado.
 
-Leer `ANALISIS_TECNICO.md` y `DECISIONES.md` antes de continuar.
+## Seguridad y límites
+
+- No exponemos el proxy en la red local: el socket escucha exclusivamente en `127.0.0.1`.
+- **Cualquier proceso local del equipo puede conectar al puerto**. No existe autenticación local ni aislamiento por proceso. Evita usarlo como protección ante malware local.
+- No persistimos contraseñas en archivos y no guardamos destinos de navegación en logs. La memoria del proceso no está protegida frente a otros procesos privilegiados.
+- La conexión al proxy remoto usa TLS con verificación de certificado y hostname; los destinos HTTPS negocian su propio TLS extremo a extremo dentro del CONNECT.
+- No hay protección tipo *kill switch*: si una aplicación decide no usar proxy, puede salir directamente.
+- No se verifica aún el uso permitido de la infraestructura de 1VPN por aplicaciones no oficiales. No automatizamos autenticaciones restringidas ni eludimos planes premium.
+
+## Estructura
+
+```
+desktop_prototype/
+  app.py                 # UI Windows local-only
+  proxycore.py           # Relay CONNECT / HTTP proxy => proxy HTTPS TLS
+  connection_check.py    # Comprobación HTTPS exclusivamente por proxy local
+  Iniciar.ps1            # Ejecución Windows
+  Compilar-EXE.ps1       # Compilación opcional en Windows
+  tests/                 # Pruebas unitarias e integración local
+scripts/
+  Descargar-1VPN-Oficial.ps1
+ANALISIS_TECNICO.md
+DECISIONES.md
+```
+
+## Próximo hito
+
+Conectar el catálogo de servidores permitidos, diagnóstico de fallos por región, métricas de conexiones activas y empaquetado Windows; siempre conservar el modo local-only. Una futura integración de TUN/Wintun se tratará en **otro módulo, sin activarse por defecto**.
+
+
+## 6. Proxificación TCP por aplicación (experimental, v0.3-alpha)
+
+**No se instala controlador ni se cambian rutas, WinINET, Wintun o reglas de firewall.**
+
+El puente SOCKS5/TCP permite usar 1VPN Desktop Lab como backend de un proxificador
+Windows compatible con SOCKS5. Conecta el puerto SOCKS5 local `127.0.0.1:1080`
+al proxy HTTP CONNECT que la app levanta en `127.0.0.1:8899`.
+
+Con la app principal v0.2 ya conectada y puerto 8899:
+
+```powershell
+py -3 .\desktop_prototype\socks5_bridge.py --http-port 8899 --port 1080
+# Prueba del protocolo SOCKS5, SIN instalar driver:
+curl.exe --socks5-hostname 127.0.0.1:1080 https://api.ipify.org
+```
+
+El adaptador **solo** soporta SOCKS5 `CONNECT` TCP, no UDP, QUIC, BIND,
+redirección automática de procesos ni kill switch. No lo confundas con una VPN.
+Consulta `docs/Proxificador-Windows-Plan.md` y
+`docs/proxifyre-lab-example.json` antes de probar ProxiFyre por separado.
+La configuración de ejemplo es de laboratorio: **no se aplica automáticamente**.

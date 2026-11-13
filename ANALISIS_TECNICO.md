@@ -101,3 +101,9 @@ El código original está disponible bajo GPL-3.0; si lo combinas en una obra de
 | Conexión a servidores de 1VPN | NO INTENTADA (se requiere validar uso autorizado). |
 
 No se enviaron credenciales ni peticiones a los servidores de 1VPN durante las pruebas de integración.
+
+## Nota de evolución — 0.2.0 (2026-11-13)
+
+A petición del usuario, la aplicación de escritorio funciona **solo con proxy HTTP local** y no invoca `windows_proxy.py` ni modifica el registro. El módulo `windows_proxy.py` queda documentado únicamente como artefacto histórico de v0.1; se excluye de la entrega del repositorio v0.2 para reducir el riesgo de uso accidental. La interfaz nueva abre un puerto local explícito (predeterminado `8899`) y deja al usuario configurar las aplicaciones seleccionadas.
+
+El botón **Comprobar salida** prueba la ruta HTTP CONNECT -> proxy remoto HTTPS/TLS -> HTTPS `api.ipify.org` usando el proxy local, sin conexión directa de respaldo. Un listener local activo **no acredita** una salida remota válida. Las pruebas de integración locales no sustituyen una prueba autorizada con el proveedor.

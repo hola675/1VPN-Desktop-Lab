@@ -31,7 +31,7 @@ class Upstream:
             raise ValueError("Nombre de servidor inválido")
         if not (1 <= self.port <= 65535):
             raise ValueError("El puerto debe estar entre 1 y 65535")
-        if any(c in self.username for c in "\r\n") or any(c in self.password for c in "\r\n"):
+        if any(c in self.username for c in "\r\n:") or any(c in self.password for c in "\r\n"):
             raise ValueError("Credenciales inválidas")
         return self
 
@@ -118,7 +118,10 @@ class ProxyRelay:
             raise RuntimeError("Servidor local no iniciado")
         return int(self.server.server_address[1])
 
-    def start(self) -> int:
+    def start(self, local_port: int = 0) -> int:
+        """Escucha solo en 127.0.0.1; 0 elige un puerto libre."""
+        if not isinstance(local_port, int) or not 0 <= local_port <= 65535:
+            raise ValueError("Puerto local inválido")
         if self.server:
             raise RuntimeError("El proxy ya está iniciado")
         relay = self
@@ -127,6 +130,9 @@ class ProxyRelay:
             def handle(self) -> None:
                 client = self.request
                 client.settimeout(15)
+                tunnel_established = False
+                stage = "lectura de solicitud local"
+                destination_port = "no identificado"
                 try:
                     header, extra = _recv_header(client)
                     first = header.split(b"\r\n", 1)[0]
@@ -135,33 +141,64 @@ class ProxyRelay:
                     )):
                         client.sendall(b"HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n")
                         return
+                    if first.startswith(b"CONNECT "):
+                        # Solo registramos el número de puerto, nunca destinos ni credenciales.
+                        authority = first.split(b" ", 2)[1]
+                        candidate = authority.rsplit(b":", 1)[-1]
+                        if candidate.isdigit() and 1 <= int(candidate) <= 65535:
+                            destination_port = candidate.decode("ascii")
+                    stage = "conexión TCP al proxy remoto"
                     # TLS a proxy ascendente, validando certificado y nombre de host.
                     with socket.create_connection((relay.upstream.host, relay.upstream.port), timeout=10) as raw:
+                        stage = "negociación TLS con proxy remoto"
                         context = ssl.create_default_context()
                         with context.wrap_socket(raw, server_hostname=relay.upstream.host) as remote:
                             remote.settimeout(15)
+                            stage = "envío de solicitud al proxy remoto"
                             remote.sendall(_inject_proxy_auth(header, relay.upstream) + extra)
                             if first.startswith(b"CONNECT "):
+                                stage = "respuesta CONNECT del proxy remoto"
                                 response, leftover = _recv_header(remote)
                                 client.sendall(response)
-                                if not response.startswith(b"HTTP/1.1 200") and not response.startswith(b"HTTP/1.0 200"):
+                                status_line = response.split(b"\r\n", 1)[0].split(b" ", 2)
+                                if len(status_line) < 2 or status_line[1] != b"200":
+                                    status_code = (
+                                        status_line[1].decode("ascii")
+                                        if len(status_line) > 1 and status_line[1].isdigit()
+                                        else "desconocido"
+                                    )
+                                    relay.log(
+                                        f"CONNECT remoto rechazado: HTTP {status_code}; "
+                                        f"puerto destino {destination_port}. No se utilizó salida directa."
+                                    )
                                     return
                                 if leftover:
                                     client.sendall(leftover)
+                                tunnel_established = True
+                            stage = "retransmisión de datos"
                             _relay(client, remote, relay.stop_event)
                 except (OSError, ssl.SSLError, ConnectionError, ValueError) as error:
-                    relay.log(f"Fallo al establecer túnel: {type(error).__name__}")
-                    try:
-                        client.sendall(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
-                    except OSError:
-                        pass
+                    is_timeout = isinstance(error, TimeoutError)
+                    relay.log(
+                        f"Fallo en {stage}: {type(error).__name__}; "
+                        f"puerto destino {destination_port}. No se utilizó salida directa."
+                    )
+                    if not tunnel_established:
+                        try:
+                            status = (
+                                b"HTTP/1.1 504 Gateway Timeout\r\n"
+                                if is_timeout else b"HTTP/1.1 502 Bad Gateway\r\n"
+                            )
+                            client.sendall(status + b"Content-Length: 0\r\nConnection: close\r\n\r\n")
+                        except OSError:
+                            pass
 
         class Server(socketserver.ThreadingTCPServer):
             allow_reuse_address = True
             daemon_threads = True
 
         # Escuchar SOLO en bucle local; no se crea un proxy abierto a la LAN.
-        self.server = Server(("127.0.0.1", 0), Handler)
+        self.server = Server(("127.0.0.1", local_port), Handler)
         self.thread = threading.Thread(target=self.server.serve_forever, name="local-proxy", daemon=True)
         self.thread.start()
         self.log(f"Proxy local iniciado en 127.0.0.1:{self.port}")
