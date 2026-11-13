@@ -22,3 +22,12 @@
 ## v0.1.0 — 2026-11-13
 
 - Investigación estática de extensión oficial 1VPN y primer proxy TLS local en Windows.
+
+## v0.4.1-dev — 2026-11-13
+
+- Catálogo Free con actualización pública HTTPS, validación de hosts y respaldo estático.
+- Selección automática por RTT TLS+CONNECT con preferencia inicial Singapur (+35 ms).
+- Fallback de conexiones CONNECT nuevas, máximo cuatro upstreams y enfriamiento de errores.
+- Selector de región y botón de medición en la interfaz v0.4.1.
+- 43 pruebas locales OK, incluida integración TLS CONNECT con recuperación tras fallo del primer servidor.
+- Sin autenticación Premium, servicio Windows ni driver de redirección transparente (pendientes).

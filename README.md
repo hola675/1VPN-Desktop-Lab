@@ -131,3 +131,42 @@ redirección automática de procesos ni kill switch. No lo confundas con una VPN
 Consulta `docs/Proxificador-Windows-Plan.md` y
 `docs/proxifyre-lab-example.json` antes de probar ProxiFyre por separado.
 La configuración de ejemplo es de laboratorio: **no se aplica automáticamente**.
+
+## v0.4.1 — Selección automática de servidores Free (2026-11-13)
+
+El panel principal incorpora un selector de **Automático · Singapur preferido**, Singapur,
+Ámsterdam, Los Ángeles y **Servidor manual**. No se graban usuarios ni contraseñas.
+
+- Catálogo incluido: 16 proxies HTTPS/443 de las tres regiones Free del código público
+  [1VPN/browser-extension](https://github.com/1vpn/browser-extension/blob/main/src/utils/freeLocations.js)
+  (referencia v4.2.1). En cada arranque automático intenta actualizarse usando
+  `https://1vpn.org/api/get_proxy_servers/` (consulta HTTPS pública, sin autenticación).
+  Si no responde o el JSON no cumple la validación, se conserva el catálogo incluido.
+  Sólo se aceptan hosts de los dominios presentes en el catálogo público y ubicaciones
+  Free reconocidas; el catálogo Premium no se habilita sin derechos de cuenta.
+- **Medición real:** cada candidato hace conexión TCP + negociación TLS con certificado
+  verificado + `CONNECT api.ipify.org:443`. RTT refleja el tiempo de esa operación,
+  no un ping ICMP ni ancho de banda. Los intentos de medición corren en segundo plano,
+  sin interrumpir los listeners locales.
+- **Preferencia por Singapur:** gana el servidor de menor RTT, excepto cuando un
+  servidor de Singapur está a no más de 35 ms del más rápido: en ese caso se
+  prefiere Singapur. Seleccionar una región fija sólo prueba esa región.
+- **Fallback:** para una conexión TCP CONNECT nueva que falle antes de establecerse,
+  intenta hasta cuatro upstreams de su lista clasificada. Un servidor rechazado se
+  evita temporalmente 45 s y las próximas conexiones seleccionan otro. Si todos
+  fallan, devuelve error (sin desviar el tráfico a una conexión directa). No
+  reintenta tráfico cuyo túnel ya está establecido ni reenvía HTTP POST dos veces.
+- Botón **MEDIR SERVIDORES** para volver a medir; se informa qué host/región fue
+  seleccionado y cuántos candidatos pasaron. **COMPROBAR SALIDA** sigue confirmando
+  la IP pública a través del proxy local.
+- Los puertos HTTP/SOCKS5 siguen limitados a `127.0.0.1`; no hay captura
+  transparente, UDP ni cambios a Wintun, DNS, WinINET o rutas de Windows.
+
+**Inicio Windows:** `py -3 .\desktop_prototype\app.py` desde la raíz del repositorio.
+Para seleccionar Manual, elige *Servidor manual* e introduce el hostname.
+En modo automático sólo necesitas las credenciales del proxy remoto que
+te correspondan legítimamente: no están incluidas en la aplicación.
+
+**Límites de las pruebas:** la suite local usa servidores TLS efímeros y mocks;
+no realiza conexiones con la infraestructura real de 1VPN. La validación de
+la latencia real, región elegida y continuidad debe completarse en Windows.

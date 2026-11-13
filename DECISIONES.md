@@ -23,3 +23,12 @@
 
 | DEC-011 | 2026-11-13 | Adoptar como referencia técnica ProxiFyre/NDISAPI para redirección transparente opt-in por proceso; descartar `rookmoot/proxifier` como interceptor. | El proyecto rookmoot es un rotador HTTP de scraping, no un controlador de conexiones Windows. |
 | DEC-012 | 2026-11-13 | Crear adaptador local SOCKS5 CONNECT -> HTTP CONNECT solo TCP, separado del motor WinINET/Wintun. | ProxiFyre consume SOCKS5 mientras que el laboratorio usa HTTP sobre TLS remoto. UDP no queda cubierto. |
+
+### ADR-012 — Selector Free v0.4.1 (2026-11-13)
+
+- El cliente prioriza Singapur cuando su RTT validado es comparable al mejor (+35 ms).
+- Medición con TLS y CONNECT real; no usar ping como único criterio de salud.
+- Catálogo público sin credenciales, filtrado por ubicaciones Free y sufijos oficiales conocidos.
+- Fallback sólo antes de establecer túnel, sin salida directa y sin duplicar envíos HTTP.
+- Se conserva el modo manual y la posibilidad de elegir una región fija.
+- Actualizar catálogo/probar upstreams en segundo plano; no habilitar Premium sin autorización.
