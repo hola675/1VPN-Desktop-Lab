@@ -13,7 +13,7 @@ import socketserver
 import ssl
 import threading
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Protocol
 
 MAX_HEADER_BYTES = 65536
 HOST_RE = re.compile(r"^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$")
@@ -104,10 +104,18 @@ def _relay(a: socket.socket, b: socket.socket, stop_event: threading.Event) -> N
             pass
 
 
+class CandidateSelector(Protocol):
+    def candidates(self) -> tuple[Upstream, ...]: ...
+    def mark_failure(self, upstream: Upstream, reason: str = "") -> None: ...
+    def mark_success(self, upstream: Upstream) -> None: ...
+
+
 class ProxyRelay:
-    def __init__(self, upstream: Upstream, log: Callable[[str], None] | None = None):
+    def __init__(self, upstream: Upstream, log: Callable[[str], None] | None = None,
+                 selector: CandidateSelector | None = None):
         self.upstream = upstream.validated()
         self.log = log or (lambda msg: None)
+        self.selector = selector
         self.stop_event = threading.Event()
         self.server: socketserver.ThreadingTCPServer | None = None
         self.thread: threading.Thread | None = None
@@ -130,66 +138,81 @@ class ProxyRelay:
             def handle(self) -> None:
                 client = self.request
                 client.settimeout(15)
-                tunnel_established = False
-                stage = "lectura de solicitud local"
+                established = False
                 destination_port = "no identificado"
+                stage = "lectura de solicitud local"
+                last_error: Exception | None = None
                 try:
                     header, extra = _recv_header(client)
                     first = header.split(b"\r\n", 1)[0]
-                    if not (first.startswith(b"CONNECT ") or first.startswith(
-                        (b"GET ", b"POST ", b"HEAD ", b"PUT ", b"DELETE ", b"OPTIONS ", b"PATCH ")
-                    )):
+                    is_connect = first.startswith(b"CONNECT ")
+                    if not (is_connect or first.startswith((b"GET ", b"POST ", b"HEAD ", b"PUT ", b"DELETE ", b"OPTIONS ", b"PATCH "))):
                         client.sendall(b"HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n")
                         return
-                    if first.startswith(b"CONNECT "):
-                        # Solo registramos el número de puerto, nunca destinos ni credenciales.
+                    if is_connect:
                         authority = first.split(b" ", 2)[1]
                         candidate = authority.rsplit(b":", 1)[-1]
                         if candidate.isdigit() and 1 <= int(candidate) <= 65535:
                             destination_port = candidate.decode("ascii")
-                    stage = "conexión TCP al proxy remoto"
-                    # TLS a proxy ascendente, validando certificado y nombre de host.
-                    with socket.create_connection((relay.upstream.host, relay.upstream.port), timeout=10) as raw:
-                        stage = "negociación TLS con proxy remoto"
-                        context = ssl.create_default_context()
-                        with context.wrap_socket(raw, server_hostname=relay.upstream.host) as remote:
-                            remote.settimeout(15)
-                            stage = "envío de solicitud al proxy remoto"
-                            remote.sendall(_inject_proxy_auth(header, relay.upstream) + extra)
-                            if first.startswith(b"CONNECT "):
-                                stage = "respuesta CONNECT del proxy remoto"
-                                response, leftover = _recv_header(remote)
-                                client.sendall(response)
-                                status_line = response.split(b"\r\n", 1)[0].split(b" ", 2)
-                                if len(status_line) < 2 or status_line[1] != b"200":
-                                    status_code = (
-                                        status_line[1].decode("ascii")
-                                        if len(status_line) > 1 and status_line[1].isdigit()
-                                        else "desconocido"
-                                    )
-                                    relay.log(
-                                        f"CONNECT remoto rechazado: HTTP {status_code}; "
-                                        f"puerto destino {destination_port}. No se utilizó salida directa."
-                                    )
-                                    return
-                                if leftover:
-                                    client.sendall(leftover)
-                                tunnel_established = True
-                            stage = "retransmisión de datos"
-                            _relay(client, remote, relay.stop_event)
-                except (OSError, ssl.SSLError, ConnectionError, ValueError) as error:
-                    is_timeout = isinstance(error, TimeoutError)
-                    relay.log(
-                        f"Fallo en {stage}: {type(error).__name__}; "
-                        f"puerto destino {destination_port}. No se utilizó salida directa."
-                    )
-                    if not tunnel_established:
+                    choices = relay.selector.candidates() if relay.selector is not None else (relay.upstream,)
+                    if not choices:
+                        raise RuntimeError("No hay servidores elegibles")
+                    # No repetimos solicitudes HTTP normales (especialmente POST) después
+                    # de enviarlas al upstream: podrían producir efectos duplicados.
+                    if not is_connect:
+                        choices = choices[:1]
+                    for index, upstream in enumerate(choices):
                         try:
-                            status = (
-                                b"HTTP/1.1 504 Gateway Timeout\r\n"
-                                if is_timeout else b"HTTP/1.1 502 Bad Gateway\r\n"
-                            )
-                            client.sendall(status + b"Content-Length: 0\r\nConnection: close\r\n\r\n")
+                            stage = "conexión TCP al proxy remoto"
+                            with socket.create_connection((upstream.host, upstream.port), timeout=5) as raw:
+                                stage = "negociación TLS con proxy remoto"
+                                context = ssl.create_default_context()
+                                with context.wrap_socket(raw, server_hostname=upstream.host) as remote:
+                                    remote.settimeout(10)
+                                    stage = "envío de solicitud al proxy remoto"
+                                    remote.sendall(_inject_proxy_auth(header, upstream) + extra)
+                                    if is_connect:
+                                        stage = "respuesta CONNECT del proxy remoto"
+                                        response, leftover = _recv_header(remote)
+                                        parts = response.split(b"\r\n", 1)[0].split(b" ", 2)
+                                        success = len(parts) >= 2 and parts[1] == b"200"
+                                        if not success:
+                                            status = parts[1].decode("ascii", "replace") if len(parts) > 1 else "?"
+                                            if relay.selector is not None:
+                                                relay.selector.mark_failure(upstream, f"HTTP {status}")
+                                            relay.log(f"CONNECT remoto rechazado: HTTP {status}; puerto destino {destination_port}; "
+                                                      f"candidato {index + 1}/{len(choices)}")
+                                            if index + 1 < len(choices):
+                                                continue
+                                            # Conserva respuesta original del servidor (incluye 407).
+                                            client.sendall(response)
+                                            return
+                                        client.sendall(response)
+                                        if leftover:
+                                            client.sendall(leftover)
+                                        established = True
+                                    if relay.selector is not None:
+                                        relay.selector.mark_success(upstream)
+                                    stage = "retransmisión de datos"
+                                    _relay(client, remote, relay.stop_event)
+                                    return
+                        except (OSError, ssl.SSLError, ConnectionError, ValueError) as exc:
+                            last_error = exc
+                            if relay.selector is not None and not established:
+                                relay.selector.mark_failure(upstream, type(exc).__name__)
+                            relay.log(f"Fallo en {stage}: {type(exc).__name__}; puerto destino {destination_port}; "
+                                      f"candidato {index + 1}/{len(choices)}. Sin salida directa.")
+                            if established or index + 1 == len(choices):
+                                break
+                    if not established:
+                        timeout = isinstance(last_error, TimeoutError)
+                        status = b"HTTP/1.1 504 Gateway Timeout\r\n" if timeout else b"HTTP/1.1 502 Bad Gateway\r\n"
+                        client.sendall(status + b"Content-Length: 0\r\nConnection: close\r\n\r\n")
+                except (OSError, ssl.SSLError, ConnectionError, ValueError, RuntimeError) as exc:
+                    relay.log(f"Fallo en {stage}: {type(exc).__name__}; puerto destino {destination_port}. Sin salida directa.")
+                    if not established:
+                        try:
+                            client.sendall(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
                         except OSError:
                             pass
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from proxycore import ProxyRelay, Upstream
+from proxycore import CandidateSelector, ProxyRelay, Upstream
 from socks5_bridge import Socks5Bridge
 
 
@@ -26,7 +26,8 @@ class NetworkEngine:
     def active(self) -> bool:
         return self.http is not None and self.socks is not None
 
-    def start(self, upstream: Upstream, http_port: int = 8899, socks_port: int = 1080) -> LocalEndpoints:
+    def start(self, upstream: Upstream, http_port: int = 8899, socks_port: int = 1080,
+              selector: CandidateSelector | None = None) -> LocalEndpoints:
         if self.http is not None or self.socks is not None:
             raise RuntimeError("Motor de proxy ya iniciado")
         if not isinstance(http_port, int) or not 0 <= http_port <= 65535:
@@ -35,7 +36,7 @@ class NetworkEngine:
             raise ValueError("Puerto SOCKS5 local inválido")
         if http_port != 0 and http_port == socks_port:
             raise ValueError("HTTP y SOCKS5 deben escuchar en puertos diferentes")
-        http = ProxyRelay(upstream.validated(), self.logger)
+        http = ProxyRelay(upstream.validated(), self.logger, selector=selector)
         try:
             actual_http_port = http.start(local_port=http_port)
             socks = Socks5Bridge(actual_http_port)
