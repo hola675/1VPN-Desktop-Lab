@@ -1,5 +1,15 @@
 # Historial de cambios — 1VPN Desktop Lab
 
+## v0.4.1a — 2026-11-13
+
+- Formulario de cuenta 1VPN con correo electrónico y contraseña, POST HTTPS JSON al endpoint de inicio de sesión Xray y soporte para 2FA.
+- Separación explícita entre credenciales de cuenta y autenticación del proxy HTTPS; no se intenta usar la contraseña de cuenta como contraseña de proxy.
+- Respuesta de plan Free/Premium y token en memoria, sin persistir contraseñas ni datos confidenciales.
+- Errores de red, credenciales rechazadas y segundo factor diferenciados.
+- Pruebas unitarias de credenciales y manejo seguro (56 pruebas locales OK).
+- Sin cambio de redirección, Wintun, DNS, rutas o firewall. No se probó un login real.
+
+
 ## v0.4.0-dev — 2026-11-13
 
 - Motor HTTP CONNECT + SOCKS5 TCP combinado en un único proceso, arranque transaccional y puertos configurables.
