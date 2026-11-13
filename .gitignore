@@ -1,0 +1,10 @@
+referencias-oficiales/
+desktop_prototype/__pycache__/
+desktop_prototype/tests/__pycache__/
+desktop_prototype/build/
+desktop_prototype/dist/
+desktop_prototype/*.spec
+*.exe
+*.crx
+*.zip
+.env
