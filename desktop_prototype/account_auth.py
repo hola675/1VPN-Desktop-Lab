@@ -205,11 +205,17 @@ class AccountClient:
                 )
                 self._emit(stage="complete", result="success", message="Inicio de sesión completado")
                 return session
+            # HTTP 429 es un límite de solicitudes aunque la respuesta no sea JSON.
+            # No reenviar credenciales a otros dominios durante un rate limit.
+            if status == 429:
+                self._emit(stage="complete", result="rate_limited",
+                           message="HTTP 429: límite temporal; no reintentar automáticamente")
+                raise AccountAuthError("rate_limited")
             if 400 <= status < 500 and self._genuine_api_rejection(data):
                 if code == 1001:
                     self._emit(stage="complete", result="two_factor_required", message="1VPN solicita 2FA")
                     raise AccountAuthError("two_factor_required")
-                reason = "rate_limited" if status == 429 else "forbidden" if status == 403 else "rejected"
+                reason = "forbidden" if status == 403 else "rejected"
                 self._emit(stage="complete", result=reason,
                            message=f"Respuesta API: HTTP {status}, clasificación {reason}. Valores ocultos.")
                 raise AccountAuthError(reason)
