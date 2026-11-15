@@ -23,7 +23,7 @@ class AccountPanel:
         "forbidden": "Acceso denegado por la API; HTTP 403 no confirma credenciales incorrectas",
         "rejected": "La API rechazó la solicitud (HTTP 4xx)",
         "two_factor_required": "La API solicita verificación 2FA",
-        "rate_limited": "Límite temporal: no repetir automáticamente (HTTP 429)",
+        "rate_limited": "Posible límite temporal (HTTP 403/429): no repetir automáticamente",
         "unavailable": "Sin conexión o sin respuesta válida de la API",
         "malformed": "Respuesta exitosa con estructura de sesión inesperada",
     }
@@ -134,6 +134,11 @@ class AccountPanel:
                     lines.append("HTTP 401: la API no autorizó la solicitud; causa exacta no confirmada")
                 elif status == 429:
                     lines.append("HTTP 429: límite temporal; no volver a intentar automáticamente")
+            hint = event.get("rejection_hint")
+            if status == 403 and hint == "rate_limit_indicated":
+                lines.append("Indicio 403: limitación de frecuencia indicada por la API; no repetir intentos")
+            elif status == 403:
+                lines.append("Indicio 403: causa concreta sin identificar; Android trata este estado como posible límite")
             schema = cls._safe_schema(event.get("response_schema"))
             if schema:
                 lines.append("Estructura JSON: " + schema)
