@@ -68,10 +68,10 @@ Ajustar las rutas del `git add` a los archivos creados realmente. No agregar sec
    ```powershell
    git fetch origin
    git switch work/auth-403-visual-local
-   git rebase origin/main
-   git push --force-with-lease origin work/auth-403-visual-local
+   git merge origin/main
+   git push origin work/auth-403-visual-local
    ```
-   `--force-with-lease` solo si no hay otros autores trabajando en esa misma rama temporal; de lo contrario, integrar `main` mediante `git merge origin/main`.
+   El merge conserva el historial de ambas ramas y evita reescribir commits compartidos; si hay conflictos, resolverlos y repetir las pruebas antes del push.
 4. Tras la fusión del PR local y su limpieza en GitHub:
    ```powershell
    git switch main
