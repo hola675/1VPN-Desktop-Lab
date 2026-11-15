@@ -6,6 +6,25 @@ from account_panel import AccountPanel
 
 
 class TestAccountPanelDiagnostics(unittest.TestCase):
+    def test_403_hint_only_shows_closed_classification(self):
+        report = "\n".join(AccountPanel.format_diagnostic_event({
+            "stage": "response", "http_status": 403, "host": "1vpn.org",
+            "response_schema": "detail:str", "rejection_hint": "rate_limit_indicated",
+            "message": "private@example.org secret code 5981",
+        }))
+        self.assertIn("limitación de frecuencia indicada", report)
+        self.assertIn("Estructura JSON: detail:str", report)
+        self.assertNotIn("private@example.org", report)
+        self.assertNotIn("5981", report)
+
+    def test_403_unknown_hint_does_not_claim_root_cause(self):
+        report = "\n".join(AccountPanel.format_diagnostic_event({
+            "stage": "response", "http_status": 403,
+            "response_schema": "detail:str", "rejection_hint": "unexpected-secret",
+        }))
+        self.assertIn("causa concreta sin identificar", report)
+        self.assertNotIn("unexpected-secret", report)
+
     def test_copy_uses_only_the_sanitized_report_buffer(self):
         class Clipboard:
             def __init__(self):

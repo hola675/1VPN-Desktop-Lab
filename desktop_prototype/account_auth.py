@@ -30,7 +30,7 @@ class AccountAuthError(Exception):
         "two_factor_required": "1VPN solicita el código de verificación (2FA).",
         "rejected": "La API rechazó la solicitud de cuenta. Comprueba los datos.",
         "forbidden": "1VPN respondió HTTP 403: posible restricción de acceso, seguridad, 2FA o credenciales. Revisa el esquema JSON del diagnóstico.",
-        "rate_limited": "1VPN limitó las solicitudes (HTTP 429). Evita volver a intentarlo repetidamente.",
+        "rate_limited": "1VPN indicó un posible límite temporal de solicitudes (HTTP 403 o 429). Evita repetir intentos.",
         "unavailable": "No se pudo contactar con la API de cuentas 1VPN por HTTPS.",
         "malformed": "1VPN respondió, pero la sesión no tiene el formato esperado.",
     }
@@ -147,6 +147,28 @@ class AccountClient:
         return code if type(code) is int and 0 <= code <= 999999 else None
 
     @staticmethod
+    def _safe_403_hint(status: int, data: dict | None) -> str:
+        """Solo clasificación cerrada; nunca devuelve texto arbitrario de la API.
+
+        La aplicación Android oficial trata 403 como rate limit, pero en
+        nuestro cliente no lo afirmamos sin indicios en detail/error.
+        """
+        if status != 403 or data is None:
+            return "none"
+        message = data.get("detail")
+        if not isinstance(message, str):
+            message = data.get("error")
+        if not isinstance(message, str):
+            return "unknown"
+        text = message.casefold()
+        if any(phrase in text for phrase in (
+            "throttl", "rate limit", "too many requests", "too many attempts",
+            "demasiados intentos", "demasiadas solicitudes",
+        )):
+            return "rate_limit_indicated"
+        return "unknown"
+
+    @staticmethod
     def _genuine_api_rejection(data: dict | None) -> bool:
         if data is None:
             return False
@@ -180,9 +202,10 @@ class AccountClient:
             data = _decode(raw)
             schema = self._safe_response_schema(data)
             code = self._safe_api_code(data)
+            hint = self._safe_403_hint(status, data)
             self._emit(stage="response", host=domain, http_status=status,
                        response_category=self._response_category(data),
-                       response_schema=schema, api_code=code,
+                       response_schema=schema, api_code=code, rejection_hint=hint,
                        message=f"Respuesta HTTPS de {domain}: HTTP {status} · JSON {schema}"
                                + (f" · código API {code}" if code is not None else ""))
             if 200 <= status < 300:
@@ -215,7 +238,8 @@ class AccountClient:
                 if code == 1001:
                     self._emit(stage="complete", result="two_factor_required", message="1VPN solicita 2FA")
                     raise AccountAuthError("two_factor_required")
-                reason = "forbidden" if status == 403 else "rejected"
+                reason = ("rate_limited" if hint == "rate_limit_indicated"
+                          else "forbidden" if status == 403 else "rejected")
                 self._emit(stage="complete", result=reason,
                            message=f"Respuesta API: HTTP {status}, clasificación {reason}. Valores ocultos.")
                 raise AccountAuthError(reason)
