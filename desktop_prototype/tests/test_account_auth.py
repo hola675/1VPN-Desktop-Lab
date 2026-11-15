@@ -37,10 +37,15 @@ class TestAccountAuth(unittest.TestCase):
         self.assertNotIn("123456", repr(events))
 
     def test_rate_limit_is_not_reported_as_bad_password(self):
-        client = AccountClient(transport=lambda *_: (429, b'{"detail":"Too many requests"}'), domains=("1vpn.org",))
+        calls = []
+        def transport(*args):
+            calls.append(args)
+            return 429, b'<html>Too many requests</html>'
+        client = AccountClient(transport=transport, domains=("1vpn.org", "1vpn.co"))
         with self.assertRaises(AccountAuthError) as exc:
             client.login("test@example.org", "secret")
         self.assertEqual(exc.exception.reason, "rate_limited")
+        self.assertEqual(len(calls), 1)
 
     def test_untrusted_keys_and_boolean_code_are_not_logged_as_api_code(self):
         events = []
