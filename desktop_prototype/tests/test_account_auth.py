@@ -7,6 +7,65 @@ from proxycore import Upstream, _inject_proxy_auth
 
 
 class TestAccountAuth(unittest.TestCase):
+    def test_403_throttling_hint_sanitizes_detail_and_does_not_retry(self):
+        events, calls = [], []
+        raw = b'{"detail": "Request was throttled. Expected available in 3600 seconds."}'
+        def transport(*args):
+            calls.append(1)
+            return 403, raw
+        client = AccountClient(transport=transport, on_event=events.append)
+        with self.assertRaises(AccountAuthError) as failure:
+            client.login("private@example.com", "pass-secret")
+        self.assertEqual(failure.exception.reason, "rate_limited")
+        self.assertEqual(len(calls), 1)
+        response = next(event for event in events if event["stage"] == "response")
+        self.assertEqual(response["rejection_hint"], "rate_limit_indicated")
+        self.assertEqual(response["response_schema"], "detail:str")
+        self.assertNotIn("3600", repr(events))
+        self.assertNotIn("private@example.com", repr(events))
+        self.assertNotIn("pass-secret", repr(events))
+
+    def test_403_unknown_detail_is_not_misclassified_or_logged(self):
+        events = []
+        client = AccountClient(
+            transport=lambda *_: (403, b'{"detail": "Confidential unknown refusal 5981"}'),
+            domains=("1vpn.org",), on_event=events.append,
+        )
+        with self.assertRaises(AccountAuthError) as failure:
+            client.login("private@example.com", "pass-secret")
+        self.assertEqual(failure.exception.reason, "forbidden")
+        response = next(event for event in events if event["stage"] == "response")
+        self.assertEqual(response["rejection_hint"], "unknown")
+        self.assertNotIn("5981", repr(events))
+
+    def test_android_login_uses_no_authorization_and_preserves_json_contract(self):
+        from unittest.mock import patch
+        from account_auth import _urllib_transport
+        seen = []
+        class FakeResponse:
+            status = 403
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def read(self, limit): return b'{"detail":"Request was throttled."}'
+        class FakeOpener:
+            def open(self, request, timeout):
+                seen.append((request, timeout))
+                return FakeResponse()
+        with patch("account_auth.build_opener", return_value=FakeOpener()) as opener:
+            result_status, response = _urllib_transport(
+                "https://1vpn.org/api/login/?type=xray",
+                b'{"email":"a@example.invalid","password":"dummy"}', 10.0,
+            )
+        self.assertEqual(result_status, 403)
+        self.assertEqual(json.loads(response), {"detail": "Request was throttled."})
+        req, timeout = seen[0]
+        self.assertEqual(req.get_method(), "POST")
+        self.assertEqual(req.get_header("Content-type"), "application/json")
+        self.assertEqual(req.get_header("Client-type"), "app")
+        self.assertIsNone(req.get_header("Authorization"))
+        self.assertEqual(timeout, 10.0)
+        self.assertEqual(opener.call_count, 1)
+
     def test_http_403_reports_schema_and_numeric_code_without_leaking_values(self):
         events = []
         secret = "secret-password-unique-29"
