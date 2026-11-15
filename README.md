@@ -1,6 +1,6 @@
 # 1VPN Desktop Lab
 
-**Versión de desarrollo: v0.4.1a (parche de autenticación) · 2026-11-13**  
+**Versión de desarrollo: v0.4.1c (diagnóstico de autenticación) · 2026-11-15**  
 **Estado:** proxy HTTP local para redirigir las solicitudes de aplicaciones compatibles hacia un **proxy HTTPS remoto autorizado**, sin usar Wintun/TUN ni modificar la configuración global de Windows.
 
 > **Proyecto experimental independiente. No es un cliente oficial de 1VPN y no equivale a una VPN del sistema.** No incorpora servidores, tokens o credenciales del proveedor. El usuario es responsable de usar servidores y credenciales para los que tenga autorización.
@@ -194,3 +194,10 @@ py -3 .\desktop_prototype\app.py
 ```
 
 Pulsa **INICIAR SESIÓN 1VPN (EMAIL)** para validar la cuenta. No copies la contraseña de la cuenta en el campo **Clave del PROXY**: esa clave autentica un servicio diferente. El inicio de sesión de cuenta por sí solo no habilita acceso Premium a los proxies de navegador; esa integración debe validarse por separado.
+
+
+## v0.4.1c — Diagnóstico seguro del rechazo 403
+
+Para la API de cuenta (`POST /api/login/?type=xray`), los mensajes del panel incluyen nombres y tipos de campos JSON **permitidos** (`code:int`, `error:str`, `detail:str`) y un código numérico de API cuando está presente. La contraseña, correo, 2FA, tokens y los valores textuales del servidor no se registran. Una respuesta 403 no demuestra contraseña incorrecta; puede depender de otras políticas o validaciones. `code:1001` indica necesidad de 2FA; `HTTP 429` detiene los intentos aunque el cuerpo no sea JSON, sin reenvío a otros dominios. 
+
+La ventana de cuenta se mantiene en 640×540, mínimo 570×500, todavía pendiente de comprobación visual real. Para coordinación de desarrollo local/remoto y entrega de informes sanitizados, consulta [`docs/PROTOCOLO-AGENTES-Y-AUTH-403.md`](docs/PROTOCOLO-AGENTES-Y-AUTH-403.md).

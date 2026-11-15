@@ -1,5 +1,14 @@
 # Historial de cambios — 1VPN Desktop Lab
 
+## v0.4.1c — 2026-11-15
+
+- Confirmado contrato de cuenta Android/Xray: POST HTTPS JSON con `email`, `password` y `token` solo para 2FA; cabecera `Client-Type: app`.
+- Para HTTP 403 se registran únicamente tipos de campos de error y código numérico API (si existe); no se muestra el cuerpo JSON literal ni información personal.
+- HTTP 403 con rechazo estructurado clasificado como acceso denegado sin afirmar que la contraseña esté mal; 429 detiene el intento incluso con respuesta HTML, sin reenviar credenciales a respaldos; código 1001 solicita 2FA.
+- Pruebas de privacidad y clasificación; CI Windows, pruebas y compilación EXE verificadas en el PR #6.
+- Guía de coordinación de agentes locales/remotos: `docs/PROTOCOLO-AGENTES-Y-AUTH-403.md`.
+- Pendiente diagnóstico real del contenido semántico del rechazo y prueba visual de la interfaz en Windows.
+
 ## v0.4.1b — 2026-11-15
 
 - Registro visible por etapas del inicio de sesión de cuenta: host oficial, estado HTTP, categoría de respuesta, tipo de error de transporte y resultado.
