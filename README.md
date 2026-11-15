@@ -181,6 +181,7 @@ Esta revisión corrige la confusión entre **cuenta 1VPN** y **credenciales del 
 - Al responder la API con `sessionAuthToken` e `isPremium` se muestra la cuenta y el tipo de plan. **La sesión solo permanece en memoria** durante la ejecución; la aplicación no guarda la clave ni el token en disco y no los registra en logs.
 - Los campos de la pantalla principal ahora dicen **Usuario del PROXY** y **Clave del PROXY**. Son diferentes del correo y contraseña de la cuenta. El proxy web oficial de cuentas Premium usa `username` más `sessionAuthToken`, no la contraseña de inicio de sesión; el token de tipo Xray de la app Android **no se incorpora automáticamente al proxy HTTPS de navegador** porque esa compatibilidad no se ha validado.
 - El login no cambia Wintun, firewall, rutas, servidores Free ni la configuración de los puertos HTTP/SOCKS5. En caso de fallo de red no se informa falsamente de una contraseña incorrecta.
+- El formulario de autenticación muestra ahora un registro local por etapas (host oficial, intento, estado HTTP, categoría de respuesta o tipo de excepción de transporte y resultado). No guarda el cuerpo de respuesta ni correo, contraseña o 2FA; los códigos de HTTP deben compartirse solo junto al diagnóstico y sin datos personales.
 - Pruebas locales con respuestas simuladas: comprobar la forma exacta del POST, rechazo de email no válido, 2FA, plan Free/Premium, dominio oficial, privacidad de tokens y manejo de errores. **No se ha probado con credenciales reales de una cuenta.**
 
 ### Ejecución

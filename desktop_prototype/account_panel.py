@@ -14,11 +14,11 @@ class AccountPanel:
     def __init__(self, parent: tk.Tk, on_session, client: AccountClient | None = None):
         self.parent = parent
         self.on_session = on_session
-        self.client = client or AccountClient()
+        self.client = client or AccountClient(on_event=self._queue_diagnostic)
         self.win = tk.Toplevel(parent)
         self.win.title("1VPN Desktop Lab — Autenticación de cuenta")
-        self.win.geometry("640x430")
-        self.win.minsize(570, 410)
+        self.win.geometry("640x540")
+        self.win.minsize(570, 500)
         self.win.configure(bg=BG)
         self.win.protocol("WM_DELETE_WINDOW", self.close)
         self.events = queue.Queue()
@@ -34,7 +34,7 @@ class AccountPanel:
         for caption, key, mask in (
             ("Correo electrónico de 1VPN", "email", ""),
             ("Contraseña de la cuenta", "password", "*"),
-            ("Código 2FA (solo si 1VPN lo solicita)", "two_factor", ""),
+            ("Código 2FA (solo si 1VPN lo solicita)", "two_factor", "*"),
         ):
             tk.Label(content, text=caption, bg=BG, fg=TEXT, font=("Segoe UI", 10)).pack(anchor="w", pady=(9, 2))
             entry = tk.Entry(content, bg=PANEL, fg=TEXT, relief="flat", insertbackground=TEXT,
@@ -51,9 +51,29 @@ class AccountPanel:
         self.status = tk.Label(content, text="Cuenta sin iniciar sesión", bg=BG, fg=MUTED,
                                font=("Segoe UI", 10), anchor="w", wraplength=550, justify="left")
         self.status.pack(anchor="w")
+        self.diagnostics = tk.Text(content, bg="#0a111d", fg=MUTED, height=7, relief="flat",
+                                   padx=9, pady=7, font=("Consolas", 9), state="disabled", wrap="word")
+        self.diagnostics.pack(fill="both", expand=True, pady=(8, 0))
+        self.diagnostic_lines = 0
+        self._queue_diagnostic({"stage": "ready", "message": "Listo. El registro no almacena correo, contraseña, código 2FA ni respuestas completas."})
         tk.Label(content, text="Correo y clave: POST HTTPS JSON a 1VPN. Sesión en memoria, sin guardar contraseña.",
                  fg=MUTED, bg=BG, font=("Segoe UI", 9), wraplength=560, justify="left").pack(anchor="w", pady=(9, 0))
         self.win.after(120, self.poll)
+
+    def _queue_diagnostic(self, event: dict):
+        self.events.put(("diagnostic", event))
+
+    def _show_diagnostic(self, event: dict):
+        from datetime import datetime
+        line = f"{datetime.now().astimezone().strftime('%H:%M:%S')} · {event.get('message', 'Etapa completada')}"
+        self.diagnostics.configure(state="normal")
+        self.diagnostics.insert("end", line + "\n")
+        self.diagnostic_lines += 1
+        if self.diagnostic_lines > 100:
+            self.diagnostics.delete("1.0", "2.0")
+            self.diagnostic_lines -= 1
+        self.diagnostics.see("end")
+        self.diagnostics.configure(state="disabled")
 
     def login(self):
         if self.pending:
@@ -84,6 +104,9 @@ class AccountPanel:
         try:
             while True:
                 kind, data = self.events.get_nowait()
+                if kind == "diagnostic":
+                    self._show_diagnostic(data)
+                    continue
                 self.pending = False
                 self.button.configure(state="normal")
                 if kind == "success":
