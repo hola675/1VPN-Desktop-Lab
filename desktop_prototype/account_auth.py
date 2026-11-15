@@ -99,12 +99,31 @@ def _decode(raw: bytes) -> dict | None:
 
 class AccountClient:
     def __init__(self, transport: Callable[[str, bytes, float], tuple[int, bytes]] | None = None,
-                 domains: tuple[str, ...] = API_DOMAINS, timeout: float = 10.0):
+                 domains: tuple[str, ...] = API_DOMAINS, timeout: float = 10.0,
+                 on_event: Callable[[dict], None] | None = None):
         self.transport = transport or _urllib_transport
         self.domains = tuple(domains)
         self.timeout = timeout
+        self.on_event = on_event
         if not self.domains or any(d not in API_DOMAINS for d in self.domains):
             raise ValueError("Los dominios de cuentas deben ser oficiales de 1VPN")
+
+    def _emit(self, **event) -> None:
+        if self.on_event is not None:
+            try:
+                self.on_event(event)
+            except Exception:
+                # Un logger/UI de diagnóstico nunca debe interrumpir el login.
+                pass
+
+    @staticmethod
+    def _response_category(data: dict | None) -> str:
+        if data is None:
+            return "non_json_or_invalid"
+        for key in ("code", "error", "detail"):
+            if key in data:
+                return key
+        return "json_without_error_fields"
 
     def login(self, email: str, password: str, two_factor: str = "") -> AccountSession:
         email, password, two_factor = validate_login(email, password, two_factor)
@@ -115,31 +134,47 @@ class AccountClient:
 
         # No se sigue una redirección HTTPS a dominios no autorizados.
         # Los fallos de red no se presentan como contraseñas incorrectas.
-        for domain in self.domains:
+        self._emit(stage="start", message="Inicio de autenticación de cuenta 1VPN")
+        for attempt, domain in enumerate(self.domains, start=1):
+            self._emit(stage="request", attempt=attempt, total=len(self.domains), host=domain,
+                       message=f"Conectando con {domain} por HTTPS (intento {attempt}/{len(self.domains)})")
             try:
                 status, raw = self.transport(f"https://{domain}{API_PATH}", request_bytes, self.timeout)
-            except Exception:
+            except Exception as error:
+                self._emit(stage="transport_error", host=domain, transport_error=type(error).__name__,
+                           message=f"Error de conexión con {domain}: {type(error).__name__}")
                 continue
             data = _decode(raw)
+            self._emit(stage="response", host=domain, http_status=status,
+                       response_category=self._response_category(data),
+                       message=f"Respuesta HTTPS de {domain}: HTTP {status}")
             if 200 <= status < 300:
                 if data is None:
+                    self._emit(stage="invalid_response", host=domain,
+                               message="La respuesta no es JSON válido o excede el límite permitido")
                     continue
                 token = data.get("sessionAuthToken")
                 premium = data.get("isPremium")
                 if not isinstance(token, str) or not token or not isinstance(premium, bool):
+                    self._emit(stage="complete", result="malformed", message="Respuesta JSON sin sesión válida")
                     raise AccountAuthError("malformed")
                 username = data.get("username")
                 server_email = data.get("email")
-                return AccountSession(
+                session = AccountSession(
                     email=server_email if isinstance(server_email, str) and server_email else email,
                     username=username if isinstance(username, str) else "",
                     is_premium=premium,
                     session_token=token,
                 )
+                self._emit(stage="complete", result="success", message="Inicio de sesión completado")
+                return session
             if 400 <= status < 500 and data is not None and any(k in data for k in ("code", "error", "detail")):
                 if data.get("code") == 1001:
+                    self._emit(stage="complete", result="two_factor_required", message="1VPN solicita 2FA")
                     raise AccountAuthError("two_factor_required")
+                self._emit(stage="complete", result="rejected", message="La API rechazó la solicitud de cuenta")
                 raise AccountAuthError("rejected")
             # HTML 403, portales cautivos y errores 5xx no son un rechazo
             # confirmado de la cuenta. Probar el siguiente dominio oficial.
+        self._emit(stage="complete", result="unavailable", message="No hubo respuesta válida de los dominios configurados")
         raise AccountAuthError("unavailable")

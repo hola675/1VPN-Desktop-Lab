@@ -7,6 +7,36 @@ from proxycore import Upstream, _inject_proxy_auth
 
 
 class TestAccountAuth(unittest.TestCase):
+    def test_login_reports_sanitized_attempt_and_response_events(self):
+        events = []
+        client = AccountClient(
+            transport=lambda *_: (401, b'{"detail":"invalid credentials"}'),
+            domains=("1vpn.org",),
+            on_event=events.append,
+        )
+        with self.assertRaises(AccountAuthError):
+            client.login("private@example.com", "private-password", "123456")
+        self.assertEqual([event["stage"] for event in events], ["start", "request", "response", "complete"])
+        self.assertEqual(events[1]["host"], "1vpn.org")
+        self.assertEqual(events[2]["http_status"], 401)
+        self.assertEqual(events[2]["response_category"], "detail")
+        self.assertEqual(events[-1]["result"], "rejected")
+        self.assertNotIn("private@example.com", repr(events))
+        self.assertNotIn("private-password", repr(events))
+        self.assertNotIn("123456", repr(events))
+
+    def test_login_reports_transport_failure_without_exception_text(self):
+        events = []
+        client = AccountClient(
+            transport=lambda *_: (_ for _ in ()).throw(TimeoutError("password-secret")),
+            domains=("1vpn.org",),
+            on_event=events.append,
+        )
+        with self.assertRaises(AccountAuthError):
+            client.login("user@example.org", "password-secret")
+        self.assertEqual(events[2]["transport_error"], "TimeoutError")
+        self.assertNotIn("password-secret", repr(events))
+
     def test_login_sends_exact_email_and_password_json(self):
         calls = []
         def transport(url, raw, timeout):

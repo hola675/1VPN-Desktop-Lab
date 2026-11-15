@@ -1,5 +1,11 @@
 # Historial de cambios — 1VPN Desktop Lab
 
+## v0.4.1b — 2026-11-15
+
+- Registro visible por etapas del inicio de sesión de cuenta: host oficial, estado HTTP, categoría de respuesta, tipo de error de transporte y resultado.
+- El registro omite correo, contraseña, 2FA, cuerpo de respuesta y texto de excepciones; campo 2FA enmascarado.
+- Suite local: 58 pruebas, 2 omitidas; sin autenticación real contra 1VPN.
+
 ## v0.4.1a — 2026-11-13
 
 - Formulario de cuenta 1VPN con correo electrónico y contraseña, POST HTTPS JSON al endpoint de inicio de sesión Xray y soporte para 2FA.
