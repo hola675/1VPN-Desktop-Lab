@@ -17,6 +17,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 API_DOMAINS = ("1vpn.org", "1vpn.co", "onevpn.com", "cloudlogcdn.com")
 API_PATH = "/api/login/?type=xray"
 MAX_RESPONSE = 65536
+SAFE_RESPONSE_FIELDS = ("code", "error", "detail", "message", "non_field_errors", "errors")
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
@@ -27,7 +28,9 @@ class AccountAuthError(Exception):
         "bad_email": "Introduce un correo electrónico válido.",
         "missing_password": "Introduce la contraseña de tu cuenta 1VPN.",
         "two_factor_required": "1VPN solicita el código de verificación (2FA).",
-        "rejected": "La cuenta rechazó las credenciales o el código 2FA. Comprueba los datos.",
+        "rejected": "La API rechazó la solicitud de cuenta. Comprueba los datos.",
+        "forbidden": "1VPN respondió HTTP 403: posible restricción de acceso, seguridad, 2FA o credenciales. Revisa el esquema JSON del diagnóstico.",
+        "rate_limited": "1VPN limitó las solicitudes (HTTP 429). Evita volver a intentarlo repetidamente.",
         "unavailable": "No se pudo contactar con la API de cuentas 1VPN por HTTPS.",
         "malformed": "1VPN respondió, pero la sesión no tiene el formato esperado.",
     }
@@ -125,6 +128,34 @@ class AccountClient:
                 return key
         return "json_without_error_fields"
 
+    @staticmethod
+    def _safe_response_schema(data: dict | None) -> str:
+        if data is None:
+            return "no-json-object"
+        # Mostrar solo nombres de campos permitidos y tipos: nunca valores.
+        parts = [
+            f"{key}:{type(data[key]).__name__}"
+            for key in SAFE_RESPONSE_FIELDS if key in data
+        ]
+        return ", ".join(parts) if parts else "json-sin-campos-de-error-conocidos"
+
+    @staticmethod
+    def _safe_api_code(data: dict | None) -> int | None:
+        if data is None:
+            return None
+        code = data.get("code")
+        return code if type(code) is int and 0 <= code <= 999999 else None
+
+    @staticmethod
+    def _genuine_api_rejection(data: dict | None) -> bool:
+        if data is None:
+            return False
+        return (
+            type(data.get("code")) is int
+            or isinstance(data.get("error"), str)
+            or isinstance(data.get("detail"), str)
+        )
+
     def login(self, email: str, password: str, two_factor: str = "") -> AccountSession:
         email, password, two_factor = validate_login(email, password, two_factor)
         payload = {"email": email, "password": password}
@@ -134,7 +165,9 @@ class AccountClient:
 
         # No se sigue una redirección HTTPS a dominios no autorizados.
         # Los fallos de red no se presentan como contraseñas incorrectas.
-        self._emit(stage="start", message="Inicio de autenticación de cuenta 1VPN")
+        self._emit(stage="start", method="POST", path=API_PATH,
+                   request_fields=("email", "password", "token") if two_factor else ("email", "password"),
+                   message="Solicitud POST JSON: email, password" + (", token(2FA)" if two_factor else "") + " (valores ocultos)")
         for attempt, domain in enumerate(self.domains, start=1):
             self._emit(stage="request", attempt=attempt, total=len(self.domains), host=domain,
                        message=f"Conectando con {domain} por HTTPS (intento {attempt}/{len(self.domains)})")
@@ -145,9 +178,13 @@ class AccountClient:
                            message=f"Error de conexión con {domain}: {type(error).__name__}")
                 continue
             data = _decode(raw)
+            schema = self._safe_response_schema(data)
+            code = self._safe_api_code(data)
             self._emit(stage="response", host=domain, http_status=status,
                        response_category=self._response_category(data),
-                       message=f"Respuesta HTTPS de {domain}: HTTP {status}")
+                       response_schema=schema, api_code=code,
+                       message=f"Respuesta HTTPS de {domain}: HTTP {status} · JSON {schema}"
+                               + (f" · código API {code}" if code is not None else ""))
             if 200 <= status < 300:
                 if data is None:
                     self._emit(stage="invalid_response", host=domain,
@@ -168,12 +205,14 @@ class AccountClient:
                 )
                 self._emit(stage="complete", result="success", message="Inicio de sesión completado")
                 return session
-            if 400 <= status < 500 and data is not None and any(k in data for k in ("code", "error", "detail")):
-                if data.get("code") == 1001:
+            if 400 <= status < 500 and self._genuine_api_rejection(data):
+                if code == 1001:
                     self._emit(stage="complete", result="two_factor_required", message="1VPN solicita 2FA")
                     raise AccountAuthError("two_factor_required")
-                self._emit(stage="complete", result="rejected", message="La API rechazó la solicitud de cuenta")
-                raise AccountAuthError("rejected")
+                reason = "rate_limited" if status == 429 else "forbidden" if status == 403 else "rejected"
+                self._emit(stage="complete", result=reason,
+                           message=f"Respuesta API: HTTP {status}, clasificación {reason}. Valores ocultos.")
+                raise AccountAuthError(reason)
             # HTML 403, portales cautivos y errores 5xx no son un rechazo
             # confirmado de la cuenta. Probar el siguiente dominio oficial.
         self._emit(stage="complete", result="unavailable", message="No hubo respuesta válida de los dominios configurados")
