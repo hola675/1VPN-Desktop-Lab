@@ -7,6 +7,56 @@ from proxycore import Upstream, _inject_proxy_auth
 
 
 class TestAccountAuth(unittest.TestCase):
+    def test_http_403_reports_schema_and_numeric_code_without_leaking_values(self):
+        events = []
+        secret = "secret-password-unique-29"
+        response = json.dumps({"code": 2876, "error": secret, "detail": "mail private@example.org", "extra": "token-private"}).encode()
+        client = AccountClient(transport=lambda *_: (403, response), domains=("1vpn.org",), on_event=events.append)
+        with self.assertRaises(AccountAuthError) as exc:
+            client.login("private@example.org", secret)
+        self.assertEqual(exc.exception.reason, "forbidden")
+        self.assertEqual(events[0]["method"], "POST")
+        self.assertEqual(events[0]["request_fields"], ("email", "password"))
+        response_event = next(event for event in events if event["stage"] == "response")
+        self.assertEqual(response_event["api_code"], 2876)
+        self.assertEqual(response_event["response_schema"], "code:int, error:str, detail:str")
+        for forbidden in (secret, "private@example.org", "token-private"):
+            self.assertNotIn(forbidden, repr(events))
+
+    def test_request_schema_mentions_token_only_for_2fa(self):
+        events = []
+        client = AccountClient(
+            transport=lambda *_: (403, b'{"code":1001,"error":"2FA required"}'),
+            domains=("1vpn.org",), on_event=events.append,
+        )
+        with self.assertRaises(AccountAuthError) as exc:
+            client.login("test@example.org", "secret", "123456")
+        self.assertEqual(exc.exception.reason, "two_factor_required")
+        self.assertEqual(events[0]["request_fields"], ("email", "password", "token"))
+        self.assertEqual(events[2]["api_code"], 1001)
+        self.assertNotIn("123456", repr(events))
+
+    def test_rate_limit_is_not_reported_as_bad_password(self):
+        client = AccountClient(transport=lambda *_: (429, b'{"detail":"Too many requests"}'), domains=("1vpn.org",))
+        with self.assertRaises(AccountAuthError) as exc:
+            client.login("test@example.org", "secret")
+        self.assertEqual(exc.exception.reason, "rate_limited")
+
+    def test_untrusted_keys_and_boolean_code_are_not_logged_as_api_code(self):
+        events = []
+        client = AccountClient(
+            transport=lambda *_: (403, b'{"code":true,"error":{"sensitive":"keep-private"},"secretKey=private":"value"}'),
+            domains=("1vpn.org",), on_event=events.append,
+        )
+        with self.assertRaises(AccountAuthError) as exc:
+            client.login("test@example.org", "secret")
+        self.assertEqual(exc.exception.reason, "unavailable")
+        response_event = next(event for event in events if event["stage"] == "response")
+        self.assertIsNone(response_event["api_code"])
+        self.assertEqual(response_event["response_schema"], "code:bool, error:dict")
+        self.assertNotIn("sensitive", repr(events))
+        self.assertNotIn("secretKey", repr(events))
+
     def test_login_reports_sanitized_attempt_and_response_events(self):
         events = []
         client = AccountClient(
