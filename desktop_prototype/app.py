@@ -415,9 +415,15 @@ class DesktopApp:
         self.address.configure(text="Dirección local: —")
 
     def close(self):
-        # Remove transparent BFE filters first, then BLOCK filters, before UI exit.
+        # Teardown order: PROXY BFE filters -> ephemeral BLOCK filters ->
+        # callout only if this OneTunnel instance started it -> Premium transport.
         self.native_proxy.stop()
         self.native_guard.stop()
+        try:
+            self.driver_lifecycle.stop_if_owned()
+        except Exception:
+            # Dynamic PROXY/BLOCK filters are already gone; do not trap UI shutdown.
+            pass
         self.disconnect()
         self.account_session = None
         self.root.destroy()
