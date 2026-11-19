@@ -1,3 +1,5 @@
+> **Actualización v0.4.3:** esta página documenta el comportamiento histórico v0.4.2 **por ruta**. La versión actual utiliza exclusivamente el nombre de proceso, como chrome.exe, y agrupa rutas/instancias. Consulta [Políticas por nombre EXE v0.4.3](POLITICAS-POR-NOMBRE-EXE-V043.md). Las instrucciones basadas en rutas de esta página han quedado sustituidas.
+
 # OneTunnel Desktop Lab v0.4.2 beta — PROXY/DIRECTO/BLOQUEAR por ejecutable
 
 **Estado:** descubrimiento de procesos y políticas por archivo .exe implementados. La captura NDIS requiere ProxiFyre y Windows Packet Filter instalados externamente. Guardar PROXY no activa el filtro por sí solo.
