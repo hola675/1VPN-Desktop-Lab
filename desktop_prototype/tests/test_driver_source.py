@@ -22,7 +22,7 @@ class DriverSourceGuardrails(unittest.TestCase):
 
     def test_redirect_context_binary_sizes_match_relay(self):
         self.assertEqual(struct.calcsize("<IHHHH16s"), 28)
-        self.assertEqual(struct.calcsize("<IHHQ"), 16)
+        self.assertEqual(struct.calcsize("<IHHII"), 16)
         self.assertIn("sizeof(OneTunnelRedirectContext) == 28", self.contract)
         self.assertIn("sizeof(OneTunnelRedirectConfig) == 16", self.contract)
 
