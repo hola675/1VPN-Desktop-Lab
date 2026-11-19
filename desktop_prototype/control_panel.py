@@ -18,11 +18,12 @@ from driver_lifecycle import (
 )
 from traffic_policy import AppPolicy, PolicyStore, app_name_from_path, normalize_app_name, executable_key
 from running_apps import list_running_apps
+import ui_theme as ui
 
-BG = "#0d1524"
-TEXT = "#ecf4ff"
-PANEL = "#142238"
-ACCENT = "#4bc7e6"
+BG = ui.BG
+TEXT = ui.TEXT
+PANEL = ui.SURFACE
+ACCENT = ui.ACCENT
 
 MODE_LABELS = {
     "MANUAL_PROXY": "PROXY MANUAL (app compatible)",
@@ -52,10 +53,13 @@ class TrafficControlPanel:
         self.legacy_firewall = FirewallManager()
         self._browsed_paths: dict[str, set[str]] = {}
         self.win = tk.Toplevel(parent)
-        self.win.title("OneTunnel — Motor WFP nativo por aplicación")
-        self.win.geometry("1120x780")
-        self.win.minsize(1000, 700)
-        self.win.configure(bg=BG)
+        ui.apply_root(
+            self.win,
+            title="OneTunnel — Aplicaciones",
+            geometry="1180x820",
+            minsize=(1040, 720),
+        )
+        ui.configure_ttk(self.win)
         self._layout()
         if self._driver_package_dir is not None:
             self.info.configure(
@@ -66,82 +70,279 @@ class TrafficControlPanel:
         self.win.after(10000, self._periodic_refresh_running)
 
     def _label(self, parent, text, color=TEXT, size=10):
-        return tk.Label(parent, text=text, font=("Segoe UI", size), fg=color, bg=parent["bg"], anchor="w")
+        return ui.label(parent, text, color=color, size=size)
 
-    def _button(self, parent, text, callback):
-        return tk.Button(parent, text=text, command=callback, font=("Segoe UI", 9, "bold"),
-                         bg=PANEL, fg=TEXT, activebackground="#254260", activeforeground=TEXT,
-                         relief="flat", padx=10, pady=8)
+    def _button(self, parent, text, callback, variant="secondary", compact=False):
+        return ui.button(
+            parent, text, callback, variant=variant, compact=compact
+        )
+
+    def _set_mode_label(self, code: str):
+        self.mode.set(MODE_LABELS[code])
+        self.info.configure(
+            text={
+                "DIRECT": "DIRECTO: la aplicación usa la red normal de Windows.",
+                "TRANSPARENT": "PROXY: OneTunnel capturará esta aplicación cuando actives la sesión WFP.",
+                "BLOCK": "BLOQUEAR: guarda la política y usa APLICAR BLOQUEO para activar filtros WFP.",
+                "MANUAL_PROXY": "Proxy manual: solo para aplicaciones que respetan variables de entorno.",
+            }[code]
+        )
 
     def _layout(self):
-        body = tk.Frame(self.win, bg=BG, padx=22, pady=18)
+        body = tk.Frame(self.win, bg=BG, padx=24, pady=20)
         body.pack(fill="both", expand=True)
-        self._label(body, "APLICACIONES EN EJECUCIÓN / REGLAS POR NOMBRE .EXE", ACCENT, 15).pack(anchor="w")
-        self._label(body, "DIRECTO: disponible · BLOQUEAR: WFP integrado · PROXY: driver firmado + relay + BFE",
-                    "#ffcc87").pack(anchor="w", pady=(5, 14))
-        row = tk.Frame(body, bg=BG)
-        row.pack(fill="x")
-        self.app_name = tk.Entry(row, bg=PANEL, fg=TEXT, insertbackground=TEXT, font=("Consolas", 10))
-        self.app_name.insert(0, "chrome.exe")
-        self.app_name.pack(side="left", expand=True, fill="x")
-        self._button(row, "Buscar aplicación .exe", self.browse).pack(side="left", padx=8)
-        modes = list(MODE_LABELS.values())
-        self.mode = ttk.Combobox(row, values=modes, state="readonly", width=32)
-        self.mode.current(0)
-        self.mode.pack(side="left")
-        bar = tk.Frame(body, bg=BG)
-        bar.pack(fill="x", pady=(12, 10))
-        self._button(bar, "Guardar política", self.save_rule).pack(side="left")
-        self._button(bar, "APLICAR BLOQUEO WFP", self.block).pack(side="left", padx=7)
-        self._button(bar, "RETIRAR BLOQUEO WFP", self.unblock).pack(side="left", padx=7)
-        self._button(bar, "Eliminar política", self.delete_rule).pack(side="left", padx=7)
-        self._button(bar, "Iniciar con variables proxy", self.launch_with_proxy).pack(side="left", padx=7)
-        external = tk.Frame(body, bg=BG)
-        external.pack(fill="x", pady=(0, 6))
-        self._button(external, "ESTADO MOTOR", self.check_native_wfp).pack(side="left")
-        self._button(external, "ACTIVAR PROXY WFP", self.activate_native_proxy).pack(side="left", padx=7)
-        self._button(external, "DETENER PROXY WFP", self.stop_native_proxy).pack(side="left", padx=7)
-        self._button(external, "CERTIFICAR PROXY (LAB)", self.certify_native_proxy).pack(side="left", padx=7)
-        self._button(external, "RETIRAR REGLAS HEREDADAS", self.cleanup_legacy_firewall).pack(side="left", padx=7)
 
-        driverbar = tk.Frame(body, bg=BG)
-        driverbar.pack(fill="x", pady=(0, 10))
-        self._button(driverbar, "ELEGIR PAQUETE FIRMADO", self.choose_driver_package).pack(side="left")
-        self._button(driverbar, "VERIFICAR FIRMA", self.verify_driver_package).pack(side="left", padx=7)
-        self._button(driverbar, "INSTALAR MOTOR", self.install_signed_driver).pack(side="left", padx=7)
-        self._button(driverbar, "INICIAR DRIVER", self.start_signed_driver).pack(side="left", padx=7)
-        self._button(driverbar, "DETENER DRIVER", self.stop_signed_driver).pack(side="left", padx=7)
-        self._button(driverbar, "DESINSTALAR", self.uninstall_signed_driver).pack(side="left", padx=7)
-        self._label(body, "PROCESOS EN EJECUCIÓN — selecciona un .exe para elegir PROXY / DIRECTO / BLOQUEAR",
-                    ACCENT, 10).pack(anchor="w", pady=(4, 3))
-        self._button(body, "Actualizar aplicaciones en ejecución", self.refresh_running).pack(anchor="w", pady=(0, 6))
+        header = tk.Frame(body, bg=BG)
+        header.pack(fill="x", pady=(0, 14))
+        title = tk.Frame(header, bg=BG)
+        title.pack(side="left")
+        ui.label(title, "Aplicaciones", color=TEXT, size=20, bold=True).pack(anchor="w")
+        ui.label(
+            title,
+            "Decide qué sale directo, qué usa la VPN y qué queda bloqueado.",
+            color=ui.MUTED,
+            size=9,
+        ).pack(anchor="w", pady=(3, 0))
+        ui.badge(header, "WFP NATIVO", tone="success").pack(side="right", pady=(6, 0))
+
+        self.info = ui.label(
+            body,
+            "Selecciona una aplicación en ejecución. Las reglas se guardan por nombre .exe.",
+            color=ui.MUTED,
+            size=9,
+        )
+        self.info.pack(fill="x", pady=(0, 12))
+
+        notebook = ttk.Notebook(body, style="OneTunnel.TNotebook")
+        notebook.pack(fill="both", expand=True)
+
+        apps_tab = tk.Frame(notebook, bg=BG, padx=2, pady=2)
+        motor_tab = tk.Frame(notebook, bg=BG, padx=2, pady=2)
+        diag_tab = tk.Frame(notebook, bg=BG, padx=2, pady=2)
+        notebook.add(apps_tab, text="  Aplicaciones  ")
+        notebook.add(motor_tab, text="  Motor WFP  ")
+        notebook.add(diag_tab, text="  Diagnóstico  ")
+
+        # --- Applications: primary workflow ---
+        selector = ui.card(apps_tab, padx=18, pady=16)
+        selector.pack(fill="x", pady=(12, 10))
+        selector.columnconfigure(0, weight=1)
+
+        ui.label(selector, "APLICACIÓN SELECCIONADA", color=ui.MUTED, size=8, bold=True).grid(
+            row=0, column=0, sticky="w"
+        )
+        select_row = tk.Frame(selector, bg=selector["bg"])
+        select_row.grid(row=1, column=0, sticky="ew", pady=(5, 12))
+        select_row.columnconfigure(0, weight=1)
+        self.app_name = ui.entry(select_row, mono=True)
+        self.app_name.insert(0, "chrome.exe")
+        self.app_name.grid(row=0, column=0, sticky="ew", ipady=7)
+        self._button(
+            select_row, "BUSCAR .EXE", self.browse, compact=True
+        ).grid(row=0, column=1, padx=(8, 0))
+
+        ui.label(selector, "POLÍTICA", color=ui.MUTED, size=8, bold=True).grid(
+            row=2, column=0, sticky="w"
+        )
+        policy_row = tk.Frame(selector, bg=selector["bg"])
+        policy_row.grid(row=3, column=0, sticky="ew", pady=(5, 0))
+
+        self._button(
+            policy_row,
+            "DIRECTO",
+            lambda: self._set_mode_label("DIRECT"),
+            variant="secondary",
+        ).pack(side="left")
+        self._button(
+            policy_row,
+            "PROXY VPN",
+            lambda: self._set_mode_label("TRANSPARENT"),
+            variant="primary",
+        ).pack(side="left", padx=(7, 0))
+        self._button(
+            policy_row,
+            "BLOQUEAR",
+            lambda: self._set_mode_label("BLOCK"),
+            variant="danger",
+        ).pack(side="left", padx=(7, 0))
+
+        self.mode = ttk.Combobox(
+            policy_row,
+            values=[
+                MODE_LABELS["DIRECT"],
+                MODE_LABELS["TRANSPARENT"],
+                MODE_LABELS["BLOCK"],
+                MODE_LABELS["MANUAL_PROXY"],
+            ],
+            state="readonly",
+            width=31,
+            style="OneTunnel.TCombobox",
+        )
+        self.mode.set(MODE_LABELS["DIRECT"])
+        self.mode.pack(side="right")
+        self._button(
+            policy_row, "GUARDAR", self.save_rule, variant="success"
+        ).pack(side="right", padx=(0, 8))
+
+        running_card = ui.card(apps_tab, padx=14, pady=12)
+        running_card.pack(fill="both", expand=True, pady=(0, 10))
+        running_head = tk.Frame(running_card, bg=running_card["bg"])
+        running_head.pack(fill="x", pady=(0, 8))
+        ui.label(
+            running_head, "Aplicaciones en ejecución", color=TEXT, size=11, bold=True
+        ).pack(side="left")
+        self._button(
+            running_head,
+            "ACTUALIZAR",
+            self.refresh_running,
+            variant="ghost",
+            compact=True,
+        ).pack(side="right")
+
         running_columns = ("exe", "pids", "policy", "instances")
         self.running_tree = ttk.Treeview(
-            body, columns=running_columns, show="headings", height=8, selectmode="browse"
+            running_card,
+            columns=running_columns,
+            show="headings",
+            height=9,
+            selectmode="browse",
+            style="OneTunnel.Treeview",
         )
-        for name, title, width in (
-            ("exe", "Aplicación (.exe)", 190),
-            ("pids", "Procesos (PID)", 140),
-            ("policy", "Política", 225),
-            ("instances", "Ubicaciones en ejecución", 180),
+        for name, title_text, width in (
+            ("exe", "Aplicación", 210),
+            ("pids", "PID", 160),
+            ("policy", "Política", 260),
+            ("instances", "Instancias", 120),
         ):
-            self.running_tree.heading(name, text=title)
+            self.running_tree.heading(name, text=title_text)
             self.running_tree.column(name, width=width, anchor="w")
-        self.running_tree.pack(fill="x", pady=(0, 7))
+        self.running_tree.pack(fill="both", expand=True)
         self.running_tree.bind("<<TreeviewSelect>>", self.select_running)
         self._running_index: dict[str, str] = {}
-        self._label(body, "POLÍTICAS GUARDADAS (cualquier instancia del mismo ejecutable)",
-                    ACCENT, 10).pack(anchor="w", pady=(4, 3))
+
+        saved_card = ui.card(apps_tab, padx=14, pady=12)
+        saved_card.pack(fill="x", pady=(0, 12))
+        saved_head = tk.Frame(saved_card, bg=saved_card["bg"])
+        saved_head.pack(fill="x", pady=(0, 8))
+        ui.label(saved_head, "Reglas guardadas", color=TEXT, size=10, bold=True).pack(side="left")
+        saved_actions = tk.Frame(saved_head, bg=saved_card["bg"])
+        saved_actions.pack(side="right")
+        self._button(
+            saved_actions, "APLICAR BLOQUEO", self.block, variant="danger", compact=True
+        ).pack(side="left")
+        self._button(
+            saved_actions, "RETIRAR BLOQUEO", self.unblock, compact=True
+        ).pack(side="left", padx=(6, 0))
+        self._button(
+            saved_actions, "ELIMINAR", self.delete_rule, variant="ghost", compact=True
+        ).pack(side="left", padx=(6, 0))
+
         columns = ("name", "mode", "firewall")
-        self.tree = ttk.Treeview(body, columns=columns, show="headings", height=7, selectmode="browse")
-        for key, label, width in (("name", "Nombre EXE (cualquier carpeta)", 310), ("mode", "Política", 245),
-                                  ("firewall", "Regla gestionada", 135)):
-            self.tree.heading(key, text=label)
+        self.tree = ttk.Treeview(
+            saved_card,
+            columns=columns,
+            show="headings",
+            height=5,
+            selectmode="browse",
+            style="OneTunnel.Treeview",
+        )
+        for key, label_text, width in (
+            ("name", "Aplicación", 280),
+            ("mode", "Política", 330),
+            ("firewall", "Estado", 180),
+        ):
+            self.tree.heading(key, text=label_text)
             self.tree.column(key, width=width, anchor="w")
-        self.tree.pack(fill="both", expand=True)
+        self.tree.pack(fill="x")
         self.tree.bind("<<TreeviewSelect>>", self.select_rule)
-        self.info = self._label(body, "BLOQUEAR usa WFP efímero. PROXY solo se activa con driver firmado/cargado y salida Premium verificada.", "#a9bdd9")
-        self.info.pack(anchor="w", pady=10)
+
+        # --- Motor WFP: advanced engine lifecycle ---
+        session_card = ui.card(motor_tab, padx=18, pady=16)
+        session_card.pack(fill="x", pady=(12, 10))
+        ui.label(session_card, "Sesión PROXY nativa", color=TEXT, size=12, bold=True).pack(anchor="w")
+        ui.label(
+            session_card,
+            "Aplica las reglas PROXY guardadas mediante el callout WFP y el relay de OneTunnel.",
+            color=ui.MUTED,
+            size=9,
+        ).pack(anchor="w", pady=(3, 10))
+        session_actions = tk.Frame(session_card, bg=session_card["bg"])
+        session_actions.pack(fill="x")
+        self._button(
+            session_actions, "ACTIVAR PROXY", self.activate_native_proxy, variant="primary"
+        ).pack(side="left")
+        self._button(
+            session_actions, "DETENER PROXY", self.stop_native_proxy, variant="secondary"
+        ).pack(side="left", padx=(8, 0))
+        self._button(
+            session_actions, "ESTADO DEL MOTOR", self.check_native_wfp, variant="ghost"
+        ).pack(side="left", padx=(8, 0))
+
+        driver_card = ui.card(motor_tab, padx=18, pady=16)
+        driver_card.pack(fill="x", pady=(0, 10))
+        ui.label(driver_card, "Driver firmado", color=TEXT, size=12, bold=True).pack(anchor="w")
+        ui.label(
+            driver_card,
+            "Instalación y ciclo de vida del callout kernel. Solo paquetes confiables por Windows.",
+            color=ui.MUTED,
+            size=9,
+        ).pack(anchor="w", pady=(3, 12))
+        row1 = tk.Frame(driver_card, bg=driver_card["bg"])
+        row1.pack(fill="x")
+        self._button(row1, "ELEGIR PAQUETE", self.choose_driver_package, compact=True).pack(side="left")
+        self._button(row1, "VERIFICAR FIRMA", self.verify_driver_package, compact=True).pack(side="left", padx=(6, 0))
+        self._button(row1, "INSTALAR", self.install_signed_driver, variant="success", compact=True).pack(side="left", padx=(6, 0))
+        row2 = tk.Frame(driver_card, bg=driver_card["bg"])
+        row2.pack(fill="x", pady=(8, 0))
+        self._button(row2, "INICIAR DRIVER", self.start_signed_driver, compact=True).pack(side="left")
+        self._button(row2, "DETENER DRIVER", self.stop_signed_driver, compact=True).pack(side="left", padx=(6, 0))
+        self._button(row2, "DESINSTALAR", self.uninstall_signed_driver, variant="danger", compact=True).pack(side="left", padx=(6, 0))
+
+        manual_card = ui.card(motor_tab, padx=18, pady=16)
+        manual_card.pack(fill="x", pady=(0, 12))
+        ui.label(manual_card, "Compatibilidad", color=TEXT, size=11, bold=True).pack(anchor="w")
+        ui.label(
+            manual_card,
+            "Modo temporal para aplicaciones que aceptan variables HTTP/SOCKS. No es captura transparente.",
+            color=ui.MUTED,
+            size=9,
+        ).pack(anchor="w", pady=(3, 9))
+        self._button(
+            manual_card, "INICIAR CON VARIABLES PROXY", self.launch_with_proxy, variant="secondary"
+        ).pack(anchor="w")
+
+        # --- Diagnostic tab ---
+        cert_card = ui.card(diag_tab, padx=18, pady=16)
+        cert_card.pack(fill="x", pady=(12, 10))
+        ui.label(cert_card, "Certificación transparente", color=TEXT, size=12, bold=True).pack(anchor="w")
+        ui.label(
+            cert_card,
+            "Prueba controlada con el probe NO_PROXY propio. No modifica políticas guardadas.",
+            color=ui.MUTED,
+            size=9,
+        ).pack(anchor="w", pady=(3, 10))
+        self._button(
+            cert_card,
+            "CERTIFICAR PROXY (LAB)",
+            self.certify_native_proxy,
+            variant="success",
+        ).pack(anchor="w")
+
+        migration_card = ui.card(diag_tab, padx=18, pady=16)
+        migration_card.pack(fill="x", pady=(0, 10))
+        ui.label(migration_card, "Migración y limpieza", color=TEXT, size=11, bold=True).pack(anchor="w")
+        ui.label(
+            migration_card,
+            "Solo elimina reglas antiguas creadas por versiones previas de OneTunnel.",
+            color=ui.MUTED,
+            size=9,
+        ).pack(anchor="w", pady=(3, 9))
+        self._button(
+            migration_card,
+            "RETIRAR REGLAS HEREDADAS",
+            self.cleanup_legacy_firewall,
+            variant="secondary",
+        ).pack(anchor="w")
 
     def _choose_name(self, name: str):
         name = normalize_app_name(name)
