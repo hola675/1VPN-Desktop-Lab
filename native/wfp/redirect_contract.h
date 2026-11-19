@@ -33,7 +33,8 @@ typedef struct _OneTunnelRedirectConfig {
     OT_U32 magic;
     OT_U16 version;
     OT_U16 relayPort;       /* host byte order */
-    OT_U64 relayProcessId;  /* user-mode transparent relay PID */
+    OT_U32 relayProcessId;  /* Windows process IDs are DWORD/UINT32 */
+    OT_U32 reserved;
 } OneTunnelRedirectConfig;
 #pragma pack(pop)
 
