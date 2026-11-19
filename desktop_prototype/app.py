@@ -30,7 +30,7 @@ DEFAULT_LOCAL_PORT = "8899"
 class DesktopApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("1VPN Desktop Lab — Servidores inteligentes v0.4.1a")
+        self.root.title("1VPN Desktop Lab — Premium y aplicaciones v0.4.2 beta")
         self.root.geometry("1080x780")
         self.root.minsize(960, 710)
         self.root.configure(bg=BG)
@@ -39,6 +39,7 @@ class DesktopApp:
         self.account_panel = None
         self.account_session: AccountSession | None = None
         self._premium_proxy_active = False
+        self._egress_verified = False
         self.selector: AutoSelector | None = None
         self._scanning = False
         self._manual_host = ""
@@ -61,7 +62,7 @@ class DesktopApp:
     def _layout(self):
         shell = tk.Frame(self.root, bg=BG, padx=32, pady=22)
         shell.pack(fill="both", expand=True)
-        self._label(shell, "DESKTOP LAB  /  v0.4.1a  /  AUTO + HTTP + SOCKS5 + CUENTA", ACCENT, 11, True).pack(anchor="w")
+        self._label(shell, "DESKTOP LAB  /  v0.4.2 beta  /  PREMIUM + HTTP + SOCKS5 + APPS", ACCENT, 11, True).pack(anchor="w")
         self._label(shell, "Proxy y políticas de tráfico para Windows", TEXT, 23, True).pack(anchor="w", pady=(9, 4))
         self._label(
             shell, "Selección Free automática con preferencia por Singapur. No modifica Wintun ni rutas.",
@@ -162,7 +163,8 @@ class DesktopApp:
                     self.logbox.see("end")
                     self.logbox.configure(state="disabled")
                 elif kind == "check" and session == self.session and self.engine.active:
-                    self.status.configure(text=text, fg=ACCENT if text.startswith("Salida verificada") else WARN)
+                    self._egress_verified = text.startswith("Salida verificada por el proxy")
+                    self.status.configure(text=text, fg=ACCENT if self._egress_verified else WARN)
                     self._log(text)
                     self.test_btn.configure(state="normal")
                 elif kind == "scan" and session == self.session and self.engine.active:
@@ -289,6 +291,7 @@ class DesktopApp:
             socks_port = int(self.inputs["socks_port"].get().strip())
             endpoints = self.engine.start(upstream, http_port=port, socks_port=socks_port, selector=self.selector)
             self._premium_proxy_active = bool(browser_premium)
+            self._egress_verified = False
             self.session += 1
             self.btn.configure(text="DETENER PROXY", bg=WARN)
             self.test_btn.configure(state="normal")
@@ -354,7 +357,11 @@ class DesktopApp:
         if self.panel and self.panel.win.winfo_exists():
             self.panel.win.lift()
             return
-        self.panel = TrafficControlPanel(self.root, lambda: self.engine.endpoints if self.engine.active else None)
+        self.panel = TrafficControlPanel(
+            self.root,
+            lambda: self.engine.endpoints if self.engine.active else None,
+            verified_getter=lambda: self.engine.active and self._egress_verified,
+        )
 
     def copy_address(self):
         if self.engine.active:
@@ -386,6 +393,7 @@ class DesktopApp:
         self.session += 1
         self.engine.stop()
         self._premium_proxy_active = False
+        self._egress_verified = False
         self.selector = None
         self._scanning = False
         self.location_combo.configure(state="readonly")
