@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>OneTunnel Premium</title>
+  <style>
+    body {font: 13px system-ui, sans-serif; width: 340px; margin: 0; padding: 16px;
+          color: #e6f2fd; background: #101a2b;}
+    h1 {font-size: 16px; margin: 0 0 10px; color: #45c6e6}
+    p {line-height: 1.5}
+    label {display: block; margin: 12px 0 3px}
+    input {box-sizing: border-box; width: 100%; background:#202f44; color:#fff;
+           border:1px solid #516278; border-radius:3px; padding:8px}
+    button {margin-top:12px; background:#48c2de; color:#0e192c; border:0; padding:10px;
+            font-weight:700; cursor:pointer; width:100%}
+    button:disabled {opacity:.6; cursor:wait}
+    #message {white-space:pre-wrap; word-wrap:break-word}
+    small {color:#a1b8cc}
+  </style>
+</head>
+<body>
+  <h1>OneTunnel — Premium web</h1>
+  <p>Abre <strong>https://1vpn.org/account/</strong> e inicia sesión allí.
+     Luego, desde esa pestaña, pulsa este icono para vincular expresamente la sesión.</p>
+  <form id="pair">
+    <label for="port">Puerto mostrado por OneTunnel</label>
+    <input id="port" type="number" min="1" max="65535" required autocomplete="off">
+    <label for="code">Código temporal de OneTunnel (5 min)</label>
+    <input id="code" type="text" required autocomplete="off" spellcheck="false">
+    <button id="send" type="submit">VINCULAR CON CONSENTIMIENTO</button>
+  </form>
+  <p id="message" role="status" aria-live="polite"></p>
+  <small>No lee el almacenamiento privado de otras extensiones. No guarda credenciales, tokens ni cookies.</small>
+  <script src="popup.js"></script>
+</body>
+</html>
