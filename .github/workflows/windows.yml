@@ -41,16 +41,41 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Error de sintaxis en popup.js" }
           node --test browser_companion/tests/account_url.test.js
           if ($LASTEXITCODE -ne 0) { throw "Fallaron las pruebas de URLs Premium" }
-      - name: Crear exe sin driver
+      - name: Compilar motor WFP propio (Windows SDK, sin drivers externos)
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio/Installer/vswhere.exe"
+          if (-not (Test-Path $vswhere)) { throw "No hay instalador de Visual Studio / MSVC" }
+          $vsVersion = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationVersion
+          if (-not $vsVersion) { throw "No se encontró MSVC C++ para Windows" }
+          $major = [int]($vsVersion.Split(".")[0])
+          $generator = switch ($major) {
+            17 { "Visual Studio 17 2022" }
+            18 { "Visual Studio 18 2026" }
+            default { throw "Visual Studio no compatible: $vsVersion" }
+          }
+          Write-Host "Motor WFP: compilando con $generator"
+          cmake -S native/wfp -B native/wfp/build -G $generator -A x64
+          if ($LASTEXITCODE -ne 0) { throw "Error configurando WFP nativo con $generator" }
+          cmake --build native/wfp/build --config Release
+          if ($LASTEXITCODE -ne 0) { throw "Error compilando WFP nativo" }
+          & native/wfp/build/Release/onetunnel-wfp-guard.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "Motor WFP no responde" }
+          # Dry-run never installs filters, suitable for unprivileged CI.
+          $sampleExe = Join-Path $env:WINDIR "System32/notepad.exe"
+          & native/wfp/build/Release/onetunnel-wfp-guard.exe --dry-run $sampleExe
+          if ($LASTEXITCODE -ne 0) { throw "Prevalidación de exe falló" }
+      - name: Crear EXE incluyendo motor WFP propio
         shell: pwsh
         working-directory: desktop_prototype
         run: |
           python -m pip install pyinstaller==6.16.0
-          python -m PyInstaller --noconfirm --clean --windowed --onefile --name 1VPN-Desktop-Lab app.py
+          python -m PyInstaller --noconfirm --clean --windowed --onefile --name 1VPN-Desktop-Lab --add-binary '..\\native\\wfp\\build\\Release\\onetunnel-wfp-guard.exe;.' app.py
+          if ($LASTEXITCODE -ne 0) { throw "Error empaquetando motor WFP" }
       - name: Guardar artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: 1VPN-Desktop-Lab-v0.4-dev-win-x64
+          name: OneTunnel-v0.5.0-native-alpha-win-x64
           path: desktop_prototype/dist/1VPN-Desktop-Lab.exe
           if-no-files-found: error
           retention-days: 14

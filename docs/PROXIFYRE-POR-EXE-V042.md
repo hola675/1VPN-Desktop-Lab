@@ -1,3 +1,5 @@
+> **Histórico, NO implementar:** este documento corresponde a la integración externa v0.4.2. Fue reemplazada por [ADR-012: motor WFP nativo](ADR-012-MOTOR-NATIVO-WFP.md). No instales ProxiFyre como requisito para OneTunnel v0.5.0-alpha.
+
 > **Actualización v0.4.3:** esta página documenta el comportamiento histórico v0.4.2 **por ruta**. La versión actual utiliza exclusivamente el nombre de proceso, como chrome.exe, y agrupa rutas/instancias. Consulta [Políticas por nombre EXE v0.4.3](POLITICAS-POR-NOMBRE-EXE-V043.md). Las instrucciones basadas en rutas de esta página han quedado sustituidas.
 
 # OneTunnel Desktop Lab v0.4.2 beta — PROXY/DIRECTO/BLOQUEAR por ejecutable

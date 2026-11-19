@@ -1,3 +1,5 @@
+> **Sustituido para nuevas implementaciones:** a partir de v0.5.0-alpha, la decisión vigente es construir motor propio con Windows Filtering Platform, sin depender de ProxiFyre/Windows Firewall para nuevas políticas. Ver [ADR-012 motor nativo WFP](ADR-012-MOTOR-NATIVO-WFP.md). Este documento queda como investigación histórica, no como guía vigente de activación.
+
 # ADR-011: Redirección transparente por aplicación en Windows
 
 **Fecha:** 2026-11-13  

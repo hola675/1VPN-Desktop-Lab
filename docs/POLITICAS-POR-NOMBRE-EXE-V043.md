@@ -1,3 +1,5 @@
+> **Actualización del backend v0.5.0-alpha:** el criterio de selección por nombre de proceso sigue vigente, pero PROXY ya no se exportará a ProxiFyre, y BLOQUEAR se gestiona con filtros nativos WFP. La guía actual está en [ADR-012](ADR-012-MOTOR-NATIVO-WFP.md).
+
 # OneTunnel Desktop Lab v0.4.3 beta — reglas por NOMBRE de aplicación
 
 **Decisión:** replicar la selección «Applications» de Proxifier con nombres

@@ -1,6 +1,6 @@
 """Panel integration: one process name covers multiple paths for firewall blocking.
 
-Fake manager prevents modifying Windows Firewall in test.
+Fake native WFP guard prevents modifying the system in this test.
 """
 from pathlib import Path
 import tempfile
@@ -12,26 +12,18 @@ from running_apps import RunningApp
 from traffic_policy import AppPolicy, PolicyStore
 
 
-class FakeFirewall:
+class FakeNativeGuard:
     def __init__(self):
-        self.rules = {}
+        self.paths = ()
         self.calls = []
 
     def managed(self):
-        return dict(self.rules)
+        return {str(i): p for i, p in enumerate(self.paths)}
 
-    def block(self, path):
-        self.calls.append(path)
-        name = "test-rule-" + str(len(self.calls))
-        self.rules[name] = path
-        return name
-
-    def unblock(self, path):
-        for rule, exe in list(self.rules.items()):
-            if exe == path:
-                del self.rules[rule]
-                return True
-        return False
+    def apply_paths(self, paths):
+        self.paths = tuple(sorted(set(paths)))
+        self.calls.append(self.paths)
+        return self.managed()
 
 
 class FakeInfo:
@@ -54,11 +46,11 @@ class TestAppNamePanel(unittest.TestCase):
         self.paths = (str(a / "chrome.exe"), str(b / "CHROME.EXE"))
         for path in self.paths:
             Path(path).write_bytes(b"MZTEST")
-        self.manager = FakeFirewall()
+        self.manager = FakeNativeGuard()
         self.store = PolicyStore(folder / "policies.json")
         # Tests business behavior without creating Tk windows.
         self.panel = TrafficControlPanel.__new__(TrafficControlPanel)
-        self.panel.firewall = self.manager
+        self.panel.guard = self.manager
         self.panel.store = self.store
         self.panel._browsed_paths = {}
         self.panel._selected = lambda: "chrome.exe"
@@ -76,7 +68,7 @@ class TestAppNamePanel(unittest.TestCase):
         with (patch("control_panel.list_running_apps", return_value=apps),
               patch("control_panel.messagebox.askyesno", return_value=True)):
             self.panel.block()
-            self.assertEqual(set(self.manager.calls), set(self.paths))
+            self.assertEqual(set(self.manager.calls[-1]), set(self.paths))
             self.assertEqual(self.store.load(), [AppPolicy("chrome.exe", "BLOCK")])
             self.assertEqual(len(self.manager.managed()), 2)
             self.panel.unblock()

@@ -1,3 +1,12 @@
+## v0.5.0-native-alpha — motor WFP propio (2026-11-19)
+
+- Cambio arquitectónico autorizado por el usuario: no depender de ProxiFyre ni de reglas Windows Defender Firewall para funcionalidades nuevas.
+- Se añadió helper C++ propio onetunnel-wfp-guard: filtros WFP dinámicos para BLOQUEAR por ruta interna de aplicación con interfaces IPv4+IPv6 ALE_AUTH_CONNECT; cierre del helper revierte el filtro.
+- Integración Python: ciclo de vida supervisado, comprobación admin, handshake acotado, reemplazo de sesiones y reversión por fallo; empaquetado en EXE.
+- UI: DIRECTO, BLOQUEAR nativo y PROXY pendiente de callout firmado. Los botones ProxiFyre se retiraron; solo queda limpieza de reglas de firewall heredadas como función de migración.
+- CI verifica suite Python y compilación nativa Windows SDK/MSVC. No se ejecutan filtros en CI, y el bloqueo real necesita prueba con administrador en Windows.
+- **Pendiente para PROXY real:** driver callout ALE_CONNECT_REDIRECT firmado + relay destino-original→SOCKS5 CONNECT, política de DNS/UDP/IPv6 y test de fugas. No hay kill switch.
+
 ## v0.4.3 beta — Reglas por nombre de EXE, como Proxifier (2026-11-19)
 
 - Políticas PROXY / DIRECTO / BLOQUEAR identificadas únicamente por basename exacto (chrome.exe), sin exigir rutas ni destino IP; schema de políticas v2.

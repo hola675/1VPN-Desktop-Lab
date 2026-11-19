@@ -1,6 +1,8 @@
+> **Arquitectura nativa v0.5.0-alpha (19 de noviembre de 2026):** se inició la sustitución de ProxiFyre y Windows Defender Firewall por un motor OneTunnel propio mediante la API Windows Filtering Platform (WFP). **BLOQUEAR** utiliza filtros WFP temporales administrados por nuestro ejecutable C++; **DIRECTO** mantiene la salida normal. **PROXY transparente sigue pendiente** de implementar un controlador WFP firmado y un relay que conserve el destino original. No es una VPN completa del sistema ni un kill switch. Las guías antiguas ProxiFyre quedan como referencia histórica; no son el camino de implementación vigente. Consulta [ADR-012 Motor WFP nativo](docs/ADR-012-MOTOR-NATIVO-WFP.md).
+
 # 1VPN Desktop Lab
 
-**Versión de desarrollo: v0.4.1c (diagnóstico de autenticación) · 2026-11-15**  
+**Versión de desarrollo: v0.5.0-native-alpha (bloqueo WFP propio) · 2026-11-19**  
 **Estado:** proxy HTTP local para redirigir las solicitudes de aplicaciones compatibles hacia un **proxy HTTPS remoto autorizado**, sin usar Wintun/TUN ni modificar la configuración global de Windows.
 
 > **Proyecto experimental independiente. No es un cliente oficial de 1VPN y no equivale a una VPN del sistema.** No incorpora servidores, tokens o credenciales del proveedor. El usuario es responsable de usar servidores y credenciales para los que tenga autorización.
