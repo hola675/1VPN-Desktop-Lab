@@ -70,3 +70,7 @@ No instalar NDISAPI, ProxiFyre, servicios ni reglas Firewall en esta fase. No gr
 - https://github.com/wiresock/proxifyre
 - https://github.com/wiresock/proxifyre/blob/main/docs/configuration.md
 - https://learn.microsoft.com/en-us/windows-hardware/drivers/network/using-bind-or-connect-redirection
+
+## Actualización v0.4.3 beta — coincidencia por nombre
+
+La política v0.4.2 de ruta absoluta se sustituyó por coincidencia por nombre de ejecutable, como chrome.exe, independiente de carpeta, en el modelo y en la exportación ProxiFyre. El listado agrupa PID por basename. Windows Firewall aún necesita una ruta por regla interna; se aplican únicamente a las copias detectadas tras confirmación. No se instala el controlador por defecto. [Detalles de v0.4.3](POLITICAS-POR-NOMBRE-EXE-V043.md).
