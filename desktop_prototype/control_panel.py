@@ -25,7 +25,7 @@ MODE_LABELS = {
     "MANUAL_PROXY": "PROXY MANUAL (app compatible)",
     "DIRECT": "DIRECTO (red normal de Windows)",
     "BLOCK": "BLOQUEAR (WFP nativo)",
-    "TRANSPARENT": "PROXY (motor WFP pendiente)",
+    "TRANSPARENT": "PROXY (WFP nativo firmado)",
 }
 
 
@@ -610,18 +610,21 @@ class TrafficControlPanel:
             if capability.control_present
             else "no incluido en esta compilación"
         )
-        proxy = "LISTO" if capability.transparent_proxy_ready else "PENDIENTE"
+        driver_running = self.driver_lifecycle.service_running()
+        proxy_active = self.native_proxy.active()
+        proxy = "ACTIVO" if proxy_active else "DETENIDO"
+        driver = "RUNNING" if driver_running else "NO RUNNING / no instalado"
         messagebox.showinfo(
             "Estado OneTunnel WFP",
             f"Bloqueo nativo WFP: {len(active)} ruta(s) activas.\n"
             f"Relay transparente: {relay}.\n"
             f"Control plane BFE: {control}.\n"
-            f"PROXY transparente: {proxy}.\n"
-            "Callout driver WFP firmado/cargado: PENDIENTE.\n\n"
-            "El relay no se inicia hasta que exista el callout compatible; "
-            "tenerlo empaquetado NO significa que se esté capturando tráfico.\n"
-            "Sin ProxiFyre y sin Windows Firewall para nuevos bloqueos.\n"
-            "Los filtros de BLOQUEAR son efímeros y se retiran al cerrar OneTunnel.",
+            f"Callout driver firmado/cargado: {driver}.\n"
+            f"PROXY transparente: {proxy}.\n\n"
+            "La activación real exige que el control plane confirme que los "
+            "callouts kernel están registrados antes de añadir filtros.\n"
+            "Sin ProxiFyre y sin Windows Firewall para nuevas reglas.\n"
+            "Los filtros PROXY/BLOQUEAR se retiran antes de cerrar OneTunnel.",
             parent=self.win,
         )
 
