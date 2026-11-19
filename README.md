@@ -1,3 +1,9 @@
+## v0.6.1 — conexión a 1VPN desde redes con proxy
+
+En **AVANZADO** puedes activar **Usar proxy de la red para conectar a 1VPN** y configurar host/IP, puerto y autenticación Basic opcional. OneTunnel realiza primero HTTP CONNECT hacia ese proxy y después establece TLS con el servidor 1VPN. Si el proxy de acceso falla, **no hay fallback directo**. El selector de servidores también mide a través de ese mismo proxy y la contraseña permanece solo en memoria.
+
+Guía: [Proxy de acceso de la red v0.6.1](docs/NETWORK-ACCESS-PROXY-V061.md).
+
 ## v0.6 — interfaz Premium: simple por fuera, completa por dentro
 
 La pantalla principal se reorganiza como dashboard: conexión, cuenta, ubicación, IP, servidor y acceso a aplicaciones. Puertos, servidor manual, credenciales técnicas y actividad pasan a secciones desplegables. **Aplicaciones** se divide en uso diario / Motor WFP / Diagnóstico, y **Cuenta** prioriza Premium web sobre Email/2FA. El motor nativo v0.5.5, los gates de firma y la certificación WFP no se debilitan.

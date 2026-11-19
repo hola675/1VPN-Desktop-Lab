@@ -17,7 +17,7 @@ class PremiumUiGuardrails(unittest.TestCase):
 
     def test_main_window_uses_progressive_disclosure(self):
         app = (ROOT / "app.py").read_text(encoding="utf-8")
-        self.assertIn("v0.6 PREMIUM UI", app)
+        self.assertIn("v0.6.1 PREMIUM UI", app)
         self.assertIn("self.advanced_frame", app)
         self.assertIn("self.activity_frame", app)
         self.assertIn("def _toggle_advanced", app)
@@ -32,6 +32,10 @@ class PremiumUiGuardrails(unittest.TestCase):
         layout = app[app.index("    def _layout(self):"):app.index("    def _log", app.index("    def _layout(self):"))]
         for key in ("host", "port", "username", "password", "local_port", "socks_port"):
             self.assertIn(f'("{key}"', layout)
+        for key in ("access_host", "access_port", "access_username", "access_password"):
+            self.assertIn(f'("{key}"', layout)
+        self.assertIn("Usar proxy de la red para conectar a 1VPN", layout)
+        self.assertIn("Sin fallback directo", app)
         # The advanced frame is created but not initially packed.
         creation = layout.index("self.advanced_frame =")
         toggle = layout.index("def _toggle_advanced")

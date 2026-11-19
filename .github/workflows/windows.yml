@@ -44,7 +44,7 @@ jobs:
         shell: pwsh
         working-directory: desktop_prototype
         run: |
-          python -c 'import tkinter as tk; from app import DesktopApp; root=tk.Tk(); root.withdraw(); app=DesktopApp(root); root.update(); assert app.btn.cget("text")=="CONECTAR"; assert app.advanced_frame.winfo_manager()==""; assert app.activity_frame.winfo_manager()==""; app.open_traffic_control(); root.update(); assert app.panel.win.winfo_exists(); app.open_account(); root.update(); assert app.account_panel.win.winfo_exists(); app.account_panel.close(); app.panel.win.destroy(); app.close()'
+          python -c 'import tkinter as tk; from app import DesktopApp; root=tk.Tk(); root.withdraw(); app=DesktopApp(root); root.update(); assert app.btn.cget("text")=="CONECTAR"; assert app.advanced_frame.winfo_manager()==""; assert app.activity_frame.winfo_manager()==""; assert "access_host" in app.inputs and "access_port" in app.inputs; assert app.inputs["access_host"].cget("state")=="disabled"; app.access_proxy_enabled.set(True); app._update_access_proxy_ui(); assert app.inputs["access_host"].cget("state")=="normal"; app.open_traffic_control(); root.update(); assert app.panel.win.winfo_exists(); app.open_account(); root.update(); assert app.account_panel.win.winfo_exists(); app.account_panel.close(); app.panel.win.destroy(); app.close()'
           if ($LASTEXITCODE -ne 0) { throw "No se pudo abrir o validar la UI premium v0.6" }
       - name: Validar JavaScript y rutas de cuenta Premium
         shell: pwsh
@@ -163,7 +163,7 @@ jobs:
       - name: Guardar artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: OneTunnel-v0.6-premium-ui-alpha-win-x64
+          name: OneTunnel-v0.6.1-network-proxy-alpha-win-x64
           path: desktop_prototype/dist/1VPN-Desktop-Lab.exe
           if-no-files-found: error
           retention-days: 14

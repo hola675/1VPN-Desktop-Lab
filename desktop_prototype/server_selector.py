@@ -14,6 +14,7 @@ import time
 from typing import Callable
 
 from proxycore import Upstream, _inject_proxy_auth, _recv_header
+from access_proxy import AccessProxy, open_via_access_proxy
 from server_catalog import ServerEndpoint, snapshot_catalogue
 
 PROBE_AUTHORITY = "api.ipify.org:443"
@@ -32,12 +33,26 @@ class ProbeResult:
     reason: str = ""
 
 
-def probe_endpoint(endpoint: ServerEndpoint, username: str = "", password: str = "", timeout: float = DEFAULT_TIMEOUT) -> ProbeResult:
+def probe_endpoint(
+    endpoint: ServerEndpoint,
+    username: str = "",
+    password: str = "",
+    timeout: float = DEFAULT_TIMEOUT,
+    access_proxy: AccessProxy | None = None,
+) -> ProbeResult:
     """Mide conexión TCP+TLS+CONNECT desde este PC. No crea tráfico directo al destino."""
     start = time.perf_counter()
     try:
         upstream = Upstream(endpoint.hostname, endpoint.port, username, password).validated()
-        with socket.create_connection((upstream.host, upstream.port), timeout=timeout) as raw:
+        if access_proxy is None:
+            raw_socket = socket.create_connection(
+                (upstream.host, upstream.port), timeout=timeout
+            )
+        else:
+            raw_socket = open_via_access_proxy(
+                access_proxy, upstream.host, upstream.port, timeout=timeout
+            )
+        with raw_socket as raw:
             context = ssl.create_default_context()
             with context.wrap_socket(raw, server_hostname=upstream.host) as remote:
                 remote.settimeout(timeout)
@@ -63,7 +78,8 @@ class AutoSelector:
 
     def __init__(self, endpoints: tuple[ServerEndpoint, ...] | None = None,
                  username: str = "", password: str = "", region: str = "auto",
-                 preferred: str = "sgp", probe: Callable[..., ProbeResult] = probe_endpoint):
+                 preferred: str = "sgp", probe: Callable[..., ProbeResult] = probe_endpoint,
+                 access_proxy: AccessProxy | None = None):
         if region not in ("auto", "sgp", "ams", "lax") and not (
             endpoints is not None and any(e.region == region for e in endpoints)
         ):
@@ -75,6 +91,9 @@ class AutoSelector:
         self.username, self.password = username, password
         self.region, self.preferred = region, preferred
         self._probe = probe
+        self.access_proxy = (
+            access_proxy.validated() if access_proxy is not None else None
+        )
         self._results: dict[ServerEndpoint, ProbeResult] = {}
         self._disabled_until: dict[ServerEndpoint, float] = {}
         self._selected: ServerEndpoint | None = None
@@ -154,7 +173,25 @@ class AutoSelector:
         results: list[ProbeResult] = []
         try:
             with ThreadPoolExecutor(max_workers=min(max(workers, 1), 8), thread_name_prefix="proxy-probe") as pool:
-                futures = {pool.submit(self._probe, e, self.username, self.password, timeout): e for e in endpoints}
+                if self.access_proxy is None:
+                    futures = {
+                        pool.submit(
+                            self._probe, e, self.username, self.password, timeout
+                        ): e
+                        for e in endpoints
+                    }
+                else:
+                    futures = {
+                        pool.submit(
+                            self._probe,
+                            e,
+                            self.username,
+                            self.password,
+                            timeout,
+                            self.access_proxy,
+                        ): e
+                        for e in endpoints
+                    }
                 for future in as_completed(futures):
                     endpoint = futures[future]
                     try:
