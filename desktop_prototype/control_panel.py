@@ -128,7 +128,7 @@ class TrafficControlPanel:
             self._choose_name(name)
             self.info.configure(
                 text=f"{name} seleccionado. La política se guarda por NOMBRE y "
-                     "abarca cualquier carpeta; Firewall usa rutas detectadas."
+                     "abarca cualquier carpeta; WFP resuelve internamente las rutas detectadas."
             )
 
     def _managed_paths(self, app_name: str) -> list[str]:
@@ -235,18 +235,18 @@ class TrafficControlPanel:
                 )
             if mode != "BLOCK" and self._managed_paths(name):
                 raise RuntimeError(
-                    "Retira primero los bloqueos de firewall de este nombre EXE"
+                    "Retira primero los bloqueos WFP activos de este nombre EXE"
                 )
             self.store.upsert(AppPolicy(name, mode))
             self.refresh()
             if mode == "BLOCK":
-                state = "BLOQUEAR guardado; pulsa Aplicar BLOQUEO para rutas actuales."
+                state = "BLOQUEAR guardado; pulsa APLICAR BLOQUEO WFP para las rutas actuales."
             elif mode == "TRANSPARENT":
                 state = "PROXY guardado como preferencia; NO intercepta tráfico hasta desarrollar el callout WFP firmado."
             elif mode == "DIRECT":
                 state = "DIRECTO guardado por nombre; usa la red normal del sistema."
             else:
-                state = "Solo apps compatibles con variables de entorno pueden usar proxy manual."
+                state = "PROXY MANUAL solo funciona en aplicaciones que respetan variables de entorno."
             self.info.configure(text=state)
         except (OSError, ValueError, RuntimeError) as error:
             messagebox.showerror("Guardar política", str(error), parent=self.win)
