@@ -56,8 +56,8 @@ form.addEventListener('submit', async (event) => {
   }
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !/^https:\/\/1vpn\.org\/account\/?(?:[?#].*)?$/.test(tab.url || '')) {
-      setMessage('Abre primero la pestaña oficial https://1vpn.org/account/ e inicia sesión.');
+    if (!tab?.id || !isOfficial1VpnAccountUrl(tab.url)) {
+      setMessage('Abre la página de tu cuenta de 1VPN en esta pestaña (por ejemplo, https://1vpn.org/es/account/). Si ya estás dentro, no necesitas iniciar sesión otra vez.');
       return;
     }
     const [result] = await chrome.scripting.executeScript({
