@@ -1,3 +1,12 @@
+## v0.5.2-native-driver-alpha — callout y control plane WFP (2026-11-19)
+
+- Callout kernel propio ALE_CONNECT_REDIRECT V4/V6 para TCP: conserva destino original, redirige al relay loopback, fija PID/redirect handle y bloquea el flujo seleccionado si la redirección falla.
+- Prevención de bucles y conflicto: redirecciones de OneTunnel pasan; una redirección de otro proveedor para una app PROXY se bloquea en vez de escapar por otro proxy.
+- Control plane nativo con sesión BFE dinámica, provider context PID/puerto, filtros ALE_APP_ID+TCP y gate que exige callout kernel registrado antes de añadir filtros.
+- Supervisor Python transaccional relay→control y cleanup control→relay. Puerto del relay efímero asignado por Windows.
+- INF de futuro paquete firmado con StartType=DEMAND, nunca BOOT_START. CI no instala ni carga drivers.
+- Estado: driver todavía UNSIGNED y no probado en kernel real; PROXY no se marca como listo.
+
 ## v0.5.1-native-relay-alpha — dataplane transparente de usuario (2026-11-19)
 
 - Añadido `onetunnel-transparent-relay.exe` propio, loopback-only: consume contexto y redirect records WFP, preserva tracking y convierte destino IPv4/IPv6 a SOCKS5 CONNECT sobre el listener OneTunnel 127.0.0.1:1080.
