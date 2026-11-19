@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "OneTunnel Premium Browser Bridge (experimental)",
+  "version": "0.1.0",
+  "description": "User-approved, one-time transfer from the signed-in official 1VPN website to OneTunnel on localhost.",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["https://1vpn.org/*", "http://127.0.0.1/*"],
+  "action": {
+    "default_title": "Vincular OneTunnel Premium",
+    "default_popup": "popup.html"
+  }
+}
