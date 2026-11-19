@@ -183,9 +183,23 @@ static VOID NTAPI OtClassifyConnectRedirect(
                 inMetaValues->redirectRecords,
                 g_redirectHandle,
                 &oldContext);
-        if (state != FWPS_CONNECTION_NOT_REDIRECTED) {
-            classifyOut->actionType = FWP_ACTION_PERMIT;
-            return;
+        switch (state) {
+            case FWPS_CONNECTION_NOT_REDIRECTED:
+                break;
+            case FWPS_CONNECTION_REDIRECTED_BY_SELF:
+            case FWPS_CONNECTION_PREVIOUSLY_REDIRECTED_BY_SELF:
+                classifyOut->actionType = FWP_ACTION_PERMIT;
+                classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+                return;
+            case FWPS_CONNECTION_REDIRECTED_BY_OTHER:
+            default:
+                /*
+                 * A selected PROXY flow must not silently escape through a
+                 * different local redirector. Fail closed on redirect conflicts.
+                 */
+                classifyOut->actionType = FWP_ACTION_BLOCK;
+                classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
+                return;
         }
     }
 
@@ -293,8 +307,6 @@ extern "C" NTSTATUS DriverEntry(
     _In_ PDRIVER_OBJECT driverObject,
     _In_ PUNICODE_STRING registryPath)
 {
-    UNICODE_STRING deviceName =
-        RTL_CONSTANT_STRING(L"\\Device\\OneTunnelWfpRedirect");
     FWPS_CALLOUT0 callout = {0};
     NTSTATUS status;
 
@@ -302,9 +314,10 @@ extern "C" NTSTATUS DriverEntry(
 
     driverObject->DriverUnload = OtUnload;
 
+    /* Unnamed device: no user-mode namespace/API is exposed by the driver. */
     status = IoCreateDevice(
-        driverObject, 0, &deviceName,
-        FILE_DEVICE_NETWORK, 0, FALSE, &g_deviceObject);
+        driverObject, 0, NULL,
+        FILE_DEVICE_NETWORK, FILE_DEVICE_SECURE_OPEN, FALSE, &g_deviceObject);
     if (!NT_SUCCESS(status)) return status;
 
     status = FwpsRedirectHandleCreate0(
