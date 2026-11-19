@@ -1,3 +1,13 @@
+## v0.4.2 beta — aplicaciones EXE y adaptación ProxiFyre (2026-11-19)
+
+- Descubrimiento de aplicaciones Windows en ejecución mediante API Win32 en solo lectura, con PID, ruta completa y política; actualización en el panel cada 10 segundos.
+- Selección por ejecutable de PROXY, DIRECTO o BLOQUEAR. No se usan dominios/IP para elegir políticas.
+- Exportador de configuración compatible con ProxiFyre, con PROXY por EXE y exclusiones DIRECTO; validación de puerto SOCKS5 y prohibición de catch-all, procesos críticos y bucles.
+- Requiere salida HTTPS realmente verificada antes de generar borrador; no instala NDIS ni modifica servicios automáticamente.
+- Firewall saliente bloquea únicamente ejecutables seleccionados tras confirmación y privilegios; reglas reversibles.
+- Tests offline; documentación de instalación externa, límites DNS/UDP/IPv6 y obligaciones AGPL-3.0.
+- **Pendiente:** instalar/activar ProxiFyre por separado y certificar redirección real en Windows, sin afirmar kill switch o protección total.
+
 ## Premium Browser Bridge — compatibilidad de cuenta localizada (2026-11-18)
 
 - El complemento reconoce las páginas de cuenta oficiales bajo rutas de idioma, incluida /es/account/, sin exigir volver a iniciar sesión.
