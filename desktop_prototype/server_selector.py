@@ -64,8 +64,10 @@ class AutoSelector:
     def __init__(self, endpoints: tuple[ServerEndpoint, ...] | None = None,
                  username: str = "", password: str = "", region: str = "auto",
                  preferred: str = "sgp", probe: Callable[..., ProbeResult] = probe_endpoint):
-        if region not in ("auto", "sgp", "ams", "lax"):
-            raise ValueError("Región desconocida")
+        if region not in ("auto", "sgp", "ams", "lax") and not (
+            endpoints is not None and any(e.region == region for e in endpoints)
+        ):
+            raise ValueError("Región desconocida o no autorizada")
         self._lock = threading.RLock()
         self._endpoints = tuple(endpoints if endpoints is not None else snapshot_catalogue())
         if not self._endpoints:

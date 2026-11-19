@@ -201,3 +201,20 @@ Pulsa **INICIAR SESIÓN 1VPN (EMAIL)** para validar la cuenta. No copies la cont
 Para la API de cuenta (`POST /api/login/?type=xray`), los mensajes del panel incluyen nombres y tipos de campos JSON **permitidos** (`code:int`, `error:str`, `detail:str`) y un código numérico de API cuando está presente. La contraseña, correo, 2FA, tokens y los valores textuales del servidor no se registran. Una respuesta 403 no demuestra contraseña incorrecta; puede depender de otras políticas o validaciones. `code:1001` indica necesidad de 2FA; `HTTP 429` detiene los intentos aunque el cuerpo no sea JSON, sin reenvío a otros dominios. 
 
 La ventana de cuenta se mantiene en 640×540, mínimo 570×500, todavía pendiente de comprobación visual real. Para coordinación de desarrollo local/remoto y entrega de informes sanitizados, consulta [`docs/PROTOCOLO-AGENTES-Y-AUTH-403.md`](docs/PROTOCOLO-AGENTES-Y-AUTH-403.md).
+
+## Premium web: vinculación voluntaria (beta)
+
+El EXE incluye un puente de vinculación local de un solo uso para cuentas Premium.
+En la ventana **INICIAR SESIÓN 1VPN (EMAIL)** selecciona **PREMIUM WEB (BETA)**,
+abre la web oficial de 1VPN en Chrome y usa la extensión adicional
+[`browser_companion/`](browser_companion/) con el puerto y el código temporal.
+
+**No está confirmado que el backend web de 1VPN exponga un token transferible
+en sesión de navegador**: la extensión falla de forma segura si no lo recibe.
+No lee cookies ni datos internos de la extensión oficial. Los datos Premium
+recibidos no confirman por sí solos una conexión; debe pasar la prueba real
+de salida HTTPS por el proxy.
+
+Consulta [instrucciones y límites](docs/PREMIUM-BROWSER-BRIDGE.md).
+El acceso Android/Xray sigue siendo una integración independiente: su
+HTTP 403 no indica que la cuenta web sea inválida.

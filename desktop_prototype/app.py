@@ -12,7 +12,7 @@ from connection_check import probe_exit_ip
 from proxycore import Upstream
 from network_engine import NetworkEngine
 from control_panel import TrafficControlPanel
-from server_catalog import COUNTRIES, refresh_catalogue, snapshot_catalogue
+from server_catalog import COUNTRIES, ServerEndpoint, refresh_catalogue, snapshot_catalogue
 from server_selector import AutoSelector
 from account_panel import AccountPanel
 from account_auth import AccountSession
@@ -38,6 +38,7 @@ class DesktopApp:
         self.panel = None
         self.account_panel = None
         self.account_session: AccountSession | None = None
+        self._premium_proxy_active = False
         self.selector: AutoSelector | None = None
         self._scanning = False
         self._manual_host = ""
@@ -71,8 +72,14 @@ class DesktopApp:
         panel.pack(fill="x")
         self.inputs: dict[str, tk.Entry] = {}
         self._label(panel, "Ubicación / selección", TEXT, 10).grid(row=0, column=0, sticky="w", pady=5)
-        choices = ["Automático · Singapur preferido", "Singapur", "Ámsterdam", "Los Ángeles", "Servidor manual"]
-        self.location_combo = ttk.Combobox(panel, values=choices, state="readonly", font=("Segoe UI", 11))
+        self._location_modes = {
+            "Automático · Singapur preferido": "auto",
+            "Singapur": "sgp", "Ámsterdam": "ams",
+            "Los Ángeles": "lax", "Servidor manual": "manual",
+        }
+        self.location_combo = ttk.Combobox(
+            panel, values=list(self._location_modes), state="readonly", font=("Segoe UI", 11)
+        )
         self.location_combo.current(0)
         self.location_combo.grid(row=0, column=1, sticky="ew", padx=(18, 0), pady=5, ipady=5)
         self.location_combo.bind("<<ComboboxSelected>>", self._on_location_changed)
@@ -168,8 +175,7 @@ class DesktopApp:
         self.root.after(150, self._poll_events)
 
     def _current_mode(self) -> str:
-        return {"Automático · Singapur preferido": "auto", "Singapur": "sgp",
-                "Ámsterdam": "ams", "Los Ángeles": "lax", "Servidor manual": "manual"}[self.location_combo.get()]
+        return self._location_modes.get(self.location_combo.get(), "auto")
 
     def _on_location_changed(self, _event=None):
         host_field = self.inputs.get("host")
@@ -183,12 +189,16 @@ class DesktopApp:
         if self._current_mode() == "manual":
             host_field.insert(0, self._manual_host)
         else:
-            host_field.insert(0, "Elegido por el catálogo Free")
+            label = "Elegido por la sesión Premium" if (
+                self.account_session is not None
+                and self.account_session.source == "browser_web"
+            ) else "Elegido por el catálogo Free"
+            host_field.insert(0, label)
             host_field.configure(state="disabled")
 
     def _scan_worker(self, selector: AutoSelector, session: int, refresh: bool):
-        source = "catálogo incluido"
-        if refresh:
+        source = "ubicaciones Premium entregadas por la sesión web" if self._premium_proxy_active else "catálogo incluido"
+        if refresh and not self._premium_proxy_active:
             try:
                 updated = refresh_catalogue(timeout=4)
                 selector.set_catalogue(updated)
@@ -199,7 +209,7 @@ class DesktopApp:
         results = selector.scan()
         summary = selector.summary()
         if summary["ok"]:
-            region = COUNTRIES[summary["region"]][0]
+            region = COUNTRIES.get(summary["region"], (summary["region"], ""))[0]
             rtt = f'{summary["rtt_ms"]} ms' if summary["rtt_ms"] is not None else "sin RTT"
             message = f'Servidor: {region} / {summary["host"]} / {rtt} · {summary["ok"]} válidos de {len(results)} ({source})'
         else:
@@ -221,7 +231,7 @@ class DesktopApp:
             if summary["tested"] and not summary["ok"]:
                 self.server_status.configure(text="Sin servidores validados; nueva medición disponible", fg=WARN)
             elif summary["host"]:
-                self.server_status.configure(text=f'Selección actual: {COUNTRIES[summary["region"]][0]} · {summary["host"]}'
+                self.server_status.configure(text=f'Selección actual: {COUNTRIES.get(summary["region"], (summary["region"], ""))[0]} · {summary["host"]}'
                                              + (f' · {summary["rtt_ms"]} ms medidos' if summary["rtt_ms"] is not None else ' · sin medición'),
                                              fg=ACCENT)
         self.root.after(5000, self._update_active_server)
@@ -246,17 +256,39 @@ class DesktopApp:
             region = self._current_mode()
             username, password = self.inputs["username"].get(), self.inputs["password"].get()
             remote_port = int(self.inputs["port"].get().strip())
+            browser_premium = (
+                self.account_session is not None
+                and self.account_session.source == "browser_web"
+                and self.account_session.is_premium
+                and region != "manual"
+            )
             if region != "manual":
                 if remote_port != 443:
-                    raise ValueError("El catálogo Free utiliza TLS por el puerto 443")
-                self.selector = AutoSelector(username=username, password=password, region=region, preferred="sgp")
-                upstream = self.selector.candidates()[0]
+                    raise ValueError("Los servidores HTTPS de 1VPN utilizan el puerto 443")
+                if browser_premium:
+                    session = self.account_session
+                    endpoints = tuple(ServerEndpoint(r, host, port) for r, host, port in session.proxy_locations)
+                    if region != "auto" and not any(e.region == region for e in endpoints):
+                        raise ValueError("La cuenta Premium no tiene servidores en esta ubicación")
+                    self.selector = AutoSelector(
+                        endpoints=endpoints,
+                        username=session.username,
+                        password=session.session_token,
+                        region=region, preferred="sgp",
+                    )
+                else:
+                    self.selector = AutoSelector(username=username, password=password, region=region, preferred="sgp")
+                candidates = self.selector.candidates()
+                if not candidates:
+                    raise ValueError("No hay servidores disponibles en esta ubicación")
+                upstream = candidates[0]
             else:
                 self.selector = None
                 upstream = Upstream(self.inputs["host"].get().strip(), remote_port, username, password).validated()
             port = int(self.inputs["local_port"].get().strip())
             socks_port = int(self.inputs["socks_port"].get().strip())
             endpoints = self.engine.start(upstream, http_port=port, socks_port=socks_port, selector=self.selector)
+            self._premium_proxy_active = bool(browser_premium)
             self.session += 1
             self.btn.configure(text="DETENER PROXY", bg=WARN)
             self.test_btn.configure(state="normal")
@@ -275,14 +307,38 @@ class DesktopApp:
             messagebox.showerror("No se pudo iniciar", str(error))
 
     def _set_account_session(self, session: AccountSession | None):
+        if self._premium_proxy_active and self.engine.active:
+            # Always disconnect old Premium proxy if account is changed/logged out.
+            self.disconnect()
         self.account_session = session
+        self._location_modes = {
+            "Automático · Singapur preferido": "auto",
+            "Singapur": "sgp", "Ámsterdam": "ams",
+            "Los Ángeles": "lax", "Servidor manual": "manual",
+        }
+        if session is not None and session.source == "browser_web":
+            # Only list regions actually authorized by this Premium session.
+            self._location_modes = {"Automático · Singapur preferido": "auto"}
+            for code in sorted({region for region, _, _ in session.proxy_locations}):
+                if code in ("sgp", "ams", "lax"):
+                    name = COUNTRIES[code][0]
+                else:
+                    name = f"{code.upper()} · Premium"
+                self._location_modes[name] = code
+            self._location_modes["Servidor manual"] = "manual"
+        self.location_combo.configure(values=list(self._location_modes))
+        self.location_combo.current(0)
+        self._on_location_changed()
         if session is None:
             self.account_status.configure(text="Cuenta 1VPN: sesión local cerrada · Proxy independiente", fg=MUTED)
+        elif session.source == "browser_web":
+            self.account_status.configure(
+                text="Premium web: datos recibidos · salida por proxy aún sin verificar", fg=WARN
+            )
         else:
-            self.account_status.configure(text=f"Cuenta 1VPN: {session.email} · {session.tier}", fg=ACCENT)
-        # No sustituir el usuario ni la contraseña del PROXY por email/password.
-        # La API de cuentas devuelve un token específico de sesión Xray; no se
-        # promete que sea aceptado por un proxy HTTPS de navegador.
+            self.account_status.configure(text=f"Cuenta 1VPN: {session.email} · {session.tier} (API móvil)", fg=ACCENT)
+        # Never copy an Xray token into HTTPS proxy credentials.
+        # Web Premium proxy tokens stay in RAM and are not placed into text fields.
 
     def open_account(self):
         if self.account_panel is not None and self.account_panel.win.winfo_exists():
@@ -329,6 +385,7 @@ class DesktopApp:
     def disconnect(self):
         self.session += 1
         self.engine.stop()
+        self._premium_proxy_active = False
         self.selector = None
         self._scanning = False
         self.location_combo.configure(state="readonly")

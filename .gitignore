@@ -8,3 +8,9 @@ desktop_prototype/*.spec
 *.crx
 *.zip
 .env
+
+# Local isolated build environments; never commit vendored Python binaries
+.venv*/
+venv/
+__pycache__/
+*.pyc

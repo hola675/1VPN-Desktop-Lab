@@ -1,3 +1,11 @@
+## Premium Browser Bridge — fase beta (2026-11-18)
+
+- Puente local 127.0.0.1 de emparejamiento explícito y temporal, sin lectura de cookies ni tokens de la extensión ajena.
+- Extensión auxiliar Chrome MV3 para intentar obtener sesión desde la página oficial autenticada; la compatibilidad real del endpoint está pendiente.
+- Proxy HTTPS usa solo credenciales Premium de la sesión web emparejada, nunca tokens Xray, y preserva lista de servidores autorizados.
+- Pruebas de puente y verificación de arranque EXE en CI Windows Python 3.13; extensión distribuida como artefacto separado.
+- Estado: integración beta no certificada frente a cuenta Premium real; no afirmar conexión hasta comprobar salida HTTPS.
+
 # Historial de cambios — 1VPN Desktop Lab
 
 ## v0.4.1c — 2026-11-15

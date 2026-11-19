@@ -48,6 +48,9 @@ class AccountSession:
     username: str
     is_premium: bool
     session_token: str = field(repr=False, compare=False)
+    # A mobile/Xray token must never be re-used as an HTTPS browser proxy password.
+    source: str = field(default="xray", repr=False, compare=False)
+    proxy_locations: tuple[tuple[str, str, int], ...] = field(default_factory=tuple, repr=False, compare=False)
 
     @property
     def tier(self) -> str:

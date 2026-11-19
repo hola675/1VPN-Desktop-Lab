@@ -12,7 +12,7 @@ import socket
 import socketserver
 import ssl
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Protocol
 
 MAX_HEADER_BYTES = 65536
@@ -24,7 +24,7 @@ class Upstream:
     host: str
     port: int
     username: str = ""
-    password: str = ""
+    password: str = field(default="", repr=False)  # token/secret must never appear in repr
 
     def validated(self) -> "Upstream":
         if not HOST_RE.fullmatch(self.host) or ".." in self.host:
