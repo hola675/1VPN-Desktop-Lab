@@ -1,3 +1,12 @@
+## v0.5.4-release-handoff-alpha — paquete firmado embebible (2026-11-19)
+
+- Compilar-EXE.ps1 acepta ONETUNNEL_SIGNED_DRIVER_DIR / parámetro SignedDriverDirectory.
+- Antes de PyInstaller, Windows debe verificar el paquete mediante el mismo verify_package/SetupVerifyInfFileW del runtime; un paquete unsigned detiene la build.
+- INF/CAT/SYS firmados se integran bajo driver_package dentro del EXE y se detectan automáticamente, sin instalación al arranque.
+- El selector manual de paquete se conserva como fallback de laboratorio.
+- .gitignore protege contenedores privados PFX/P12/PVK y staging native/driver/signed-package/.
+- Documentado el handoff Hardware Dev Center: attestation para testing y WHCP/HLK para distribución según el escenario.
+- No se añaden bypasses de firma ni se integra el paquete UNSIGNED de CI.
 ## v0.5.3-signed-driver-alpha — lifecycle firmado e integración PROXY (2026-11-19)
 
 - INF modernizado como primitive driver: DefaultInstall.NTamd64, DIRID 13/Driver Store, PnpLockdown y demand-start; sin DefaultUninstall.
