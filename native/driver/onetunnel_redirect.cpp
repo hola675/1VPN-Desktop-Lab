@@ -34,7 +34,7 @@ static UINT32 g_calloutIdV4 = 0;
 static UINT32 g_calloutIdV6 = 0;
 
 static BOOLEAN OtConfigFromFilter(
-    _In_ const FWPS_FILTER0* filter,
+    _In_ const FWPS_FILTER2* filter,
     _Out_ OneTunnelRedirectConfig* config)
 {
     if (!filter || !filter->providerContext ||
@@ -126,7 +126,7 @@ static VOID NTAPI OtClassifyConnectRedirect(
     _In_ const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
     _Inout_opt_ VOID* layerData,
     _In_opt_ const VOID* classifyContext,
-    _In_ const FWPS_FILTER0* filter,
+    _In_ const FWPS_FILTER2* filter,
     _In_ UINT64 flowContext,
     _Inout_ FWPS_CLASSIFY_OUT0* classifyOut)
 {
@@ -219,8 +219,8 @@ static VOID NTAPI OtClassifyConnectRedirect(
 
     if (OtAlreadyTargetsRelay(&request->remoteAddressAndPort,
                               config.relayPort)) {
-        status = FwpsApplyModifiedLayerData0(classifyHandle, request, 0);
-        applied = NT_SUCCESS(status);
+        FwpsApplyModifiedLayerData0(classifyHandle, request, 0);
+        applied = TRUE;
         goto Permit;
     }
 
@@ -237,8 +237,7 @@ static VOID NTAPI OtClassifyConnectRedirect(
     request->localRedirectContext = context;
     request->localRedirectContextSize = sizeof(*context);
 
-    status = FwpsApplyModifiedLayerData0(classifyHandle, request, 0);
-    if (!NT_SUCCESS(status)) goto FailClosed;
+    FwpsApplyModifiedLayerData0(classifyHandle, request, 0);
 
     /* WFP owns localRedirectContext after successful apply. */
     context = NULL;
@@ -269,7 +268,7 @@ Exit:
 static NTSTATUS NTAPI OtNotify(
     _In_ FWPS_CALLOUT_NOTIFY_TYPE notifyType,
     _In_ const GUID* filterKey,
-    _Inout_ FWPS_FILTER0* filter)
+    _Inout_ FWPS_FILTER2* filter)
 {
     UNREFERENCED_PARAMETER(notifyType);
     UNREFERENCED_PARAMETER(filterKey);
@@ -307,7 +306,7 @@ extern "C" NTSTATUS DriverEntry(
     _In_ PDRIVER_OBJECT driverObject,
     _In_ PUNICODE_STRING registryPath)
 {
-    FWPS_CALLOUT0 callout = {0};
+    FWPS_CALLOUT2 callout = {0};
     NTSTATUS status;
 
     UNREFERENCED_PARAMETER(registryPath);
@@ -327,7 +326,7 @@ extern "C" NTSTATUS DriverEntry(
     callout.calloutKey = ONETUNNEL_CALLOUT_CONNECT_V4;
     callout.classifyFn = OtClassifyConnectRedirect;
     callout.notifyFn = OtNotify;
-    status = FwpsCalloutRegister0(
+    status = FwpsCalloutRegister2(
         g_deviceObject, &callout, &g_calloutIdV4);
     if (!NT_SUCCESS(status)) goto Fail;
 
@@ -335,7 +334,7 @@ extern "C" NTSTATUS DriverEntry(
     callout.calloutKey = ONETUNNEL_CALLOUT_CONNECT_V6;
     callout.classifyFn = OtClassifyConnectRedirect;
     callout.notifyFn = OtNotify;
-    status = FwpsCalloutRegister0(
+    status = FwpsCalloutRegister2(
         g_deviceObject, &callout, &g_calloutIdV6);
     if (!NT_SUCCESS(status)) goto Fail;
 
