@@ -54,11 +54,11 @@ bool parse_u16(const wchar_t* raw, std::uint16_t& value) {
     } catch (...) { return false; }
 }
 
-bool parse_u64(const wchar_t* raw, std::uint64_t& value) {
+bool parse_u32(const wchar_t* raw, std::uint32_t& value) {
     try {
-        unsigned long long parsed = std::stoull(raw);
-        if (!parsed) return false;
-        value = static_cast<std::uint64_t>(parsed);
+        unsigned long parsed = std::stoul(raw);
+        if (!parsed || parsed > 0xffffffffUL) return false;
+        value = static_cast<std::uint32_t>(parsed);
         return true;
     } catch (...) { return false; }
 }
@@ -187,7 +187,7 @@ DWORD add_context_and_filters(
 
 DWORD configure_session(
     Engine& engine,
-    std::uint64_t relayPid,
+    std::uint32_t relayPid,
     std::uint16_t relayPort,
     const std::vector<std::wstring>& apps)
 {
@@ -239,9 +239,9 @@ int self_test() {
         sizeof(OneTunnelRedirectContext) != 28) return 1;
     if (ONETUNNEL_CONFIG_MAGIC == ONETUNNEL_REDIRECT_MAGIC) return 2;
     std::uint16_t port = 0;
-    std::uint64_t pid = 0;
+    std::uint32_t pid = 0;
     if (!parse_u16(L"10900", port) || port != 10900) return 3;
-    if (!parse_u64(L"1234", pid) || pid != 1234) return 4;
+    if (!parse_u32(L"1234", pid) || pid != 1234) return 4;
     std::wcout << L"PASS WFP control-plane offline self-test\n";
     return 0;
 }
@@ -256,14 +256,14 @@ int wmain(int argc, wchar_t** argv) {
     }
 
     std::uint16_t relayPort = 0;
-    std::uint64_t relayPid = 0;
+    std::uint32_t relayPid = 0;
     std::vector<std::wstring> apps;
     for (int i = 1; i < argc; ++i) {
         const std::wstring arg(argv[i]);
         if (arg == L"--relay-port" && i + 1 < argc) {
             if (!parse_u16(argv[++i], relayPort)) return 2;
         } else if (arg == L"--relay-pid" && i + 1 < argc) {
-            if (!parse_u64(argv[++i], relayPid)) return 2;
+            if (!parse_u32(argv[++i], relayPid)) return 2;
         } else if (arg == L"--app" && i + 1 < argc) {
             std::wstring path(argv[++i]);
             if (!valid_exe(path)) return 2;
