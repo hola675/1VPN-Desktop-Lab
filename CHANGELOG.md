@@ -1,3 +1,14 @@
+## v0.5.3-signed-driver-alpha — lifecycle firmado e integración PROXY (2026-11-19)
+
+- INF modernizado como primitive driver: DefaultInstall.NTamd64, DIRID 13/Driver Store, PnpLockdown y demand-start; sin DefaultUninstall.
+- CI valida con InfVerif /w, genera catálogo con Inf2Cat y publica un paquete UNSIGNED separado; nunca instala/carga el driver en runner.
+- SetupVerifyInfFileW exige catálogo firmado/confiable exacto antes de cualquier cambio; DiInstallDriverW/DiUninstallDriverW gestionan Driver Store.
+- SCM nativo Start/Stop, propiedad de servicio por instancia y orden de cierre filtros PROXY → BLOCK → driver propio → transporte Premium.
+- UI: elegir/verificar paquete, instalar/iniciar/detener/desinstalar y ACTIVAR/DETENER PROXY WFP.
+- ACTIVAR PROXY exige salida Premium verificada, políticas PROXY, rutas actuales y callout firmado/cargado; el control plane sigue bloqueando si el callout no está registrado.
+- El paquete unsigned de CI es deliberadamente rechazado; no se implementa testsigning, nointegritychecks ni bypass de Secure Boot.
+- Estado: falta firma de kernel válida y prueba real en VM/PC antes de considerar PROXY apto para producción.
+
 ## v0.5.2-native-driver-alpha — callout y control plane WFP (2026-11-19)
 
 - Callout kernel propio ALE_CONNECT_REDIRECT V4/V6 para TCP: conserva destino original, redirige al relay loopback, fija PID/redirect handle y bloquea el flujo seleccionado si la redirección falla.

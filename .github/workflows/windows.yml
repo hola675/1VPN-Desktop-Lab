@@ -91,6 +91,40 @@ jobs:
           $driver = "native/driver/bin/Release/onetunnel-wfp-redirect.sys"
           if (-not (Test-Path $driver)) { throw "No se generó el .sys del callout" }
           Write-Host "Callout WFP compilado sin instalar ni cargar: $driver"
+      - name: Validar paquete primitive y generar catálogo SIN FIRMAR
+        shell: pwsh
+        run: |
+          $wdk = Resolve-Path "native/driver/packages/Microsoft.Windows.WDK.x64.10.0.28000.2526"
+          $infverif = Get-ChildItem $wdk -Filter InfVerif.exe -Recurse |
+            Where-Object { $_.FullName -match '\\x64\\|\\x86\\' } |
+            Select-Object -First 1
+          $inf2cat = Get-ChildItem $wdk -Filter Inf2Cat.exe -Recurse |
+            Where-Object { $_.FullName -match '\\x64\\|\\x86\\' } |
+            Select-Object -First 1
+          if (-not $infverif) { throw "WDK NuGet no contiene InfVerif.exe" }
+          if (-not $inf2cat) { throw "WDK NuGet no contiene Inf2Cat.exe" }
+
+          $package = Join-Path $PWD "native/driver/package"
+          New-Item -ItemType Directory -Force $package | Out-Null
+          Copy-Item "native/driver/OneTunnelRedirect.inf" $package
+          Copy-Item "native/driver/bin/Release/onetunnel-wfp-redirect.sys" $package
+
+          & $infverif.FullName /w (Join-Path $package "OneTunnelRedirect.inf")
+          if ($LASTEXITCODE -ne 0) { throw "INF no cumple Windows Driver / aislamiento" }
+
+          & $inf2cat.FullName /driver:$package /os:10_25H2_X64,10_GE_X64 /uselocaltime /verbose
+          if ($LASTEXITCODE -ne 0) { throw "Inf2Cat rechazó el paquete" }
+
+          $catalog = Join-Path $package "OneTunnelRedirect.cat"
+          if (-not (Test-Path $catalog)) { throw "Inf2Cat no generó el catálogo" }
+          Write-Host "Paquete SIGNABLE generado. El catálogo sigue SIN FIRMAR y NO debe instalarse."
+      - name: Guardar paquete WFP SIN FIRMAR (solo revisión)
+        uses: actions/upload-artifact@v4
+        with:
+          name: OneTunnel-WFP-Package-UNSIGNED-CI
+          path: native/driver/package/
+          if-no-files-found: error
+          retention-days: 7
       - name: Guardar callout WFP SIN FIRMAR (solo laboratorio)
         uses: actions/upload-artifact@v4
         with:
@@ -108,7 +142,7 @@ jobs:
       - name: Guardar artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: OneTunnel-v0.5.2-native-control-alpha-win-x64
+          name: OneTunnel-v0.5.3-signed-driver-alpha-win-x64
           path: desktop_prototype/dist/1VPN-Desktop-Lab.exe
           if-no-files-found: error
           retention-days: 14

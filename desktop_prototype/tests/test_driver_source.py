@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DRIVER = ROOT / "native" / "driver" / "onetunnel_redirect.cpp"
 CONTRACT = ROOT / "native" / "wfp" / "redirect_contract.h"
 CONTROL = ROOT / "native" / "wfp" / "wfp_control.cpp"
-INF = ROOT / "native" / "driver" / "OneTunnelRedirect.inx"
+INF = ROOT / "native" / "driver" / "OneTunnelRedirect.inf"
 PROJECT = ROOT / "native" / "driver" / "OneTunnelRedirect.vcxproj"
 
 
@@ -98,12 +98,19 @@ class DriverSourceGuardrails(unittest.TestCase):
         self.assertNotIn("<DriverTargetPlatform>Universal</DriverTargetPlatform>", self.project)
         self.assertIn("<TargetVersion>Windows10</TargetVersion>", self.project)
 
-    def test_driver_package_is_demand_start_not_boot_start(self):
+    def test_driver_package_is_modern_primitive_demand_start(self):
         self.assertIn("Class       = WFPCALLOUTS", self.inf)
-        self.assertIn("StartType     = 3", self.inf)
-        self.assertNotIn("StartType     = 0", self.inf)
-        self.assertIn("Dependencies = BFE", self.inf)
+        self.assertIn("[DefaultInstall.NTamd64]", self.inf)
+        self.assertIn("[DefaultInstall.NTamd64.Services]", self.inf)
+        self.assertNotIn("[DefaultUninstall", self.inf)
+        self.assertNotIn("[Manufacturer]", self.inf)
+        self.assertIn("OneTunnelRedirect.CopyFiles = 13", self.inf)
+        self.assertIn("ServiceBinary  = %13%\\onetunnel-wfp-redirect.sys", self.inf)
+        self.assertIn("StartType      = 3", self.inf)
+        self.assertNotIn("StartType      = 0", self.inf)
+        self.assertIn("Dependencies   = BFE", self.inf)
         self.assertIn("PnpLockdown = 1", self.inf)
+        self.assertRegex(self.inf, r"DriverVer\s*=\s*\d{2}/\d{2}/\d{4},\d+\.\d+\.\d+\.\d+")
 
     def test_ci_never_loads_or_installs_driver(self):
         workflow = (ROOT / ".github" / "workflows" / "windows.yml").read_text(encoding="utf-8")
