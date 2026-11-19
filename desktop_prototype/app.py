@@ -13,6 +13,7 @@ from proxycore import Upstream
 from network_engine import NetworkEngine
 from control_panel import TrafficControlPanel
 from native_wfp import NativeWfpGuard
+from native_proxy import NativeProxySession
 from server_catalog import COUNTRIES, ServerEndpoint, refresh_catalogue, snapshot_catalogue
 from server_selector import AutoSelector
 from account_panel import AccountPanel
@@ -37,6 +38,7 @@ class DesktopApp:
         self.root.configure(bg=BG)
         self.engine = NetworkEngine(self._log)
         self.native_guard = NativeWfpGuard()
+        self.native_proxy = NativeProxySession()  # dormant until signed callout is available
         self.panel = None
         self.account_panel = None
         self.account_session: AccountSession | None = None
@@ -409,7 +411,8 @@ class DesktopApp:
         self.address.configure(text="Dirección local: —")
 
     def close(self):
-        # Dynamic WFP sessions are removed before the UI exits.
+        # Remove transparent BFE filters first, then BLOCK filters, before UI exit.
+        self.native_proxy.stop()
         self.native_guard.stop()
         self.disconnect()
         self.account_session = None
