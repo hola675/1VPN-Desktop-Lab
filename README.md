@@ -1,3 +1,9 @@
+## v0.5.3 — signed driver lifecycle + native PROXY controls (alpha)
+
+OneTunnel ya integra el ciclo de vida del callout WFP: verificar paquete/catálogo firmado, instalar primitive driver en Driver Store, iniciar/detener el servicio demand-start y activar una sesión PROXY nativa por las políticas de nombres EXE. **El paquete kernel de CI sigue SIN FIRMAR y será rechazado por la aplicación**; por tanto, PROXY transparente todavía no es instalable en un Windows de producción hasta completar firma de kernel y prueba de laboratorio.
+
+La aplicación no instala drivers al arrancar, no usa ProxiFyre para el backend vigente y no crea nuevas reglas Windows Firewall. El paquete firmado futuro se gestiona explícitamente desde **APLICACIONES / FIREWALL**. Detalles: [ADR-014](docs/ADR-014-SIGNED-DRIVER-LIFECYCLE.md).
+
 ## v0.5.2 — callout WFP + control plane (alpha)
 
 OneTunnel ya contiene código propio para el callout kernel `ALE_CONNECT_REDIRECT`, el control plane BFE dinámico y el relay transparente. El control plane solo crea filtros para rutas de aplicaciones seleccionadas y se niega a hacerlo si el callout kernel no está registrado. El supervisor Python inicia relay→control y revierte ambos ante fallo.
@@ -15,7 +21,7 @@ El ejecutable incluye ahora dos componentes propios: `onetunnel-wfp-guard.exe` p
 
 # 1VPN Desktop Lab
 
-**Versión de desarrollo: v0.5.0-native-alpha (bloqueo WFP propio) · 2026-11-19**  
+**Versión de desarrollo: v0.5.3 signed-driver-alpha · 2026-11-19**  
 **Estado:** proxy HTTP local para redirigir las solicitudes de aplicaciones compatibles hacia un **proxy HTTPS remoto autorizado**, sin usar Wintun/TUN ni modificar la configuración global de Windows.
 
 > **Proyecto experimental independiente. No es un cliente oficial de 1VPN y no equivale a una VPN del sistema.** No incorpora servidores, tokens o credenciales del proveedor. El usuario es responsable de usar servidores y credenciales para los que tenga autorización.
