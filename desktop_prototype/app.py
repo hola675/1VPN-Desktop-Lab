@@ -1,4 +1,4 @@
-"""OneTunnel v0.5.3: Premium + WFP nativo + lifecycle de driver firmado."""
+"""OneTunnel v0.5.5: Premium + WFP nativo + certificación transparente de laboratorio."""
 from __future__ import annotations
 
 import os
