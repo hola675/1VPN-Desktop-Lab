@@ -44,6 +44,40 @@ class TestAccountPanelDiagnostics(unittest.TestCase):
         panel.copy_diagnostic()
         self.assertEqual(clipboard.value, "HTTP 403\nJSON: code:int")
 
+    def test_pairing_fields_copy_separately_without_combining(self):
+        class Clipboard:
+            value = ""
+
+            def clipboard_clear(self):
+                self.value = ""
+
+            def clipboard_append(self, value):
+                self.value += value
+
+            def update_idletasks(self):
+                pass
+
+        clipboard = Clipboard()
+        port = "60087"
+        code = "FAKE_PAIRING_SECRET_FOR_TESTS"
+        self.assertTrue(AccountPanel._copy_pairing_text(clipboard, port))
+        self.assertEqual(clipboard.value, port)
+        self.assertNotIn(code, clipboard.value)
+        self.assertTrue(AccountPanel._copy_pairing_text(clipboard, code))
+        self.assertEqual(clipboard.value, code)
+        self.assertNotIn(port, clipboard.value)
+
+    def test_pairing_copy_reports_clipboard_failure(self):
+        from tkinter import TclError
+
+        class UnavailableClipboard:
+            def clipboard_clear(self):
+                raise TclError("clipboard unavailable")
+
+        self.assertFalse(AccountPanel._copy_pairing_text(
+            UnavailableClipboard(), "FAKE_PAIRING_SECRET_FOR_TESTS"
+        ))
+
     def test_formats_request_using_only_method_and_allowed_field_names(self):
         lines = AccountPanel.format_diagnostic_event({
             "stage": "start",
