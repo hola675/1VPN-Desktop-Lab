@@ -8,7 +8,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from firewall_rules import FirewallManager, rule_name
-from traffic_policy import AppPolicy, PolicyStore, normalize_executable
+from traffic_policy import AppPolicy, PolicyStore, normalize_executable, executable_key
+from running_apps import list_running_apps
 from proxifyre_adapter import (
     DRAFT_FILE_NAME, build_proxifyre_draft, describe_proxifyre_draft,
     save_proxifyre_draft,
@@ -21,9 +22,9 @@ ACCENT = "#4bc7e6"
 
 MODE_LABELS = {
     "MANUAL_PROXY": "PROXY MANUAL (app compatible)",
-    "DIRECT": "DIRECTO (no se intercepta)",
+    "DIRECT": "DIRECTO (excluir de ProxiFyre)",
     "BLOCK": "BLOQUEAR (firewall Windows)",
-    "TRANSPARENT": "PROXIFYRE TCP (driver externo)",
+    "TRANSPARENT": "PROXY (ProxiFyre TCP/IPv4)",
 }
 
 
@@ -35,10 +36,13 @@ class TrafficControlPanel:
         self.firewall = FirewallManager()
         self.win = tk.Toplevel(parent)
         self.win.title("1VPN Desktop Lab — Aplicaciones y firewall")
-        self.win.geometry("980x620")
+        self.win.geometry("1120x780")
+        self.win.minsize(1000, 700)
         self.win.configure(bg=BG)
         self._layout()
         self.refresh()
+        self.refresh_running()
+        self.win.after(10000, self._periodic_refresh_running)
 
     def _label(self, parent, text, color=TEXT, size=10):
         return tk.Label(parent, text=text, font=("Segoe UI", size), fg=color, bg=parent["bg"], anchor="w")
@@ -51,7 +55,7 @@ class TrafficControlPanel:
     def _layout(self):
         body = tk.Frame(self.win, bg=BG, padx=22, pady=18)
         body.pack(fill="both", expand=True)
-        self._label(body, "APLICACIONES Y FIREWALL / v0.4", ACCENT, 15).pack(anchor="w")
+        self._label(body, "APLICACIONES EN EJECUCIÓN / POLÍTICAS POR .EXE", ACCENT, 15).pack(anchor="w")
         self._label(body, "ProxiFyre: captura externa opcional. Este panel solo prepara borradores; BLOQUEAR requiere administrador.",
                     "#ffcc87").pack(anchor="w", pady=(5, 14))
         row = tk.Frame(body, bg=BG)
@@ -74,15 +78,35 @@ class TrafficControlPanel:
         external.pack(fill="x", pady=(0, 10))
         self._button(external, "PREPARAR PERFIL PROXIFYRE (TCP)", self.prepare_proxifyre).pack(side="left")
         self._button(external, "DIAGNÓSTICO DRIVER/SERVICIO", self.check_proxifyre).pack(side="left", padx=8)
+        self._label(body, "PROCESOS EN EJECUCIÓN — selecciona un .exe para elegir PROXY / DIRECTO / BLOQUEAR",
+                    ACCENT, 10).pack(anchor="w", pady=(4, 3))
+        self._button(body, "Actualizar aplicaciones en ejecución", self.refresh_running).pack(anchor="w", pady=(0, 6))
+        running_columns = ("exe", "pids", "policy", "path")
+        self.running_tree = ttk.Treeview(
+            body, columns=running_columns, show="headings", height=8, selectmode="browse"
+        )
+        for name, title, width in (
+            ("exe", "Aplicación (.exe)", 190),
+            ("pids", "Procesos (PID)", 140),
+            ("policy", "Política", 225),
+            ("path", "Ruta del ejecutable", 470),
+        ):
+            self.running_tree.heading(name, text=title)
+            self.running_tree.column(name, width=width, anchor="w")
+        self.running_tree.pack(fill="x", pady=(0, 7))
+        self.running_tree.bind("<<TreeviewSelect>>", self.select_running)
+        self._running_index: dict[str, str] = {}
+        self._label(body, "POLÍTICAS GUARDADAS (cualquier instancia del mismo ejecutable)",
+                    ACCENT, 10).pack(anchor="w", pady=(4, 3))
         columns = ("path", "mode", "firewall")
-        self.tree = ttk.Treeview(body, columns=columns, show="headings", height=13, selectmode="browse")
+        self.tree = ttk.Treeview(body, columns=columns, show="headings", height=7, selectmode="browse")
         for key, label, width in (("path", "Ejecutable", 430), ("mode", "Política", 245),
                                   ("firewall", "Regla gestionada", 135)):
             self.tree.heading(key, text=label)
             self.tree.column(key, width=width, anchor="w")
         self.tree.pack(fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", self.select_rule)
-        self.info = self._label(body, "Las reglas PROXY no interceptan aplicaciones sin motor nativo.", "#a9bdd9")
+        self.info = self._label(body, "PROXY requiere ProxiFyre/WinpkFilter instalado y activo; DIRECTO excluye, BLOQUEAR usa Firewall.", "#a9bdd9")
         self.info.pack(anchor="w", pady=10)
 
     def browse(self):
@@ -96,10 +120,66 @@ class TrafficControlPanel:
         try:
             managed = self.firewall.managed()
             for rule in self.store.load():
-                active = "Registrada" if rule_name(rule.executable) in managed else "No registrada"
+                active = "Firewall activo" if rule_name(rule.executable) in managed else "Sin bloqueo aplicado"
                 self.tree.insert("", "end", values=(rule.executable, MODE_LABELS[rule.mode], active))
+            self.refresh_running()
         except Exception as e:
             messagebox.showerror("Políticas", str(e), parent=self.win)
+
+    def refresh_running(self):
+        """Read-only list of accessible running executables; never infer by hostname."""
+        if not hasattr(self, "running_tree"):
+            return
+        try:
+            selected = self.running_tree.selection()
+            old_path = self._running_index.get(selected[0], "") if selected else ""
+            self.running_tree.delete(*self.running_tree.get_children())
+            self._running_index = {}
+            modes = {executable_key(rule.executable): rule.mode for rule in self.store.load()}
+            blocked = self.firewall.managed()
+            for app in list_running_apps():
+                iid = self.running_tree.insert(
+                    "", "end",
+                    values=(
+                        app.name,
+                        ", ".join(str(pid) for pid in app.pids[:7])
+                        + (f" (+{len(app.pids) - 7})" if len(app.pids) > 7 else ""),
+                        MODE_LABELS[modes[executable_key(app.executable)]]
+                        if executable_key(app.executable) in modes
+                        else "SIN REGLA (directo)",
+                        app.executable,
+                    ),
+                )
+                self._running_index[iid] = app.executable
+                if old_path and executable_key(old_path) == executable_key(app.executable):
+                    self.running_tree.selection_set(iid)
+        except (OSError, ValueError, RuntimeError) as error:
+            self.info.configure(text=f"No se pudo actualizar procesos: {type(error).__name__}")
+
+    def _periodic_refresh_running(self):
+        if not self.win.winfo_exists():
+            return
+        self.refresh_running()
+        self.win.after(10000, self._periodic_refresh_running)
+
+    def select_running(self, _event=None):
+        selection = self.running_tree.selection()
+        if not selection:
+            return
+        executable = self._running_index.get(selection[0])
+        if not executable:
+            return
+        self.path.delete(0, "end")
+        self.path.insert(0, executable)
+        policy = next(
+            (p for p in self.store.load()
+             if executable_key(p.executable) == executable_key(executable)), None
+        )
+        self.mode.set(MODE_LABELS[policy.mode] if policy else MODE_LABELS["DIRECT"])
+        self.info.configure(
+            text=f"Seleccionado: {Path(executable).name}. La política se aplica a "
+                 "todas las instancias de este .exe, NO a una dirección o dominio."
+        )
 
     def select_rule(self, _event=None):
         items = self.tree.selection()
@@ -124,7 +204,13 @@ class TrafficControlPanel:
                 raise RuntimeError("Retira el bloqueo de firewall antes de cambiar la política")
             self.store.upsert(AppPolicy(exe, mode))
             self.refresh()
-            self.info.configure(text="Política guardada. No se ha modificado la red del sistema.")
+            if mode == "BLOCK":
+                state = "BLOQUEO guardado; aplica Windows Firewall con su botón y confirmación."
+            elif mode == "TRANSPARENT":
+                state = "PROXY guardado; prepara el perfil y actívalo manualmente con ProxiFyre."
+            else:
+                state = "Política guardada. DIRECTO requiere incluir la exclusión en ProxiFyre activo."
+            self.info.configure(text=state)
         except Exception as e:
             messagebox.showerror("Guardar política", str(e), parent=self.win)
 
