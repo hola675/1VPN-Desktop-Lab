@@ -30,7 +30,7 @@ DEFAULT_LOCAL_PORT = "8899"
 class DesktopApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("1VPN Desktop Lab — Premium y aplicaciones v0.4.2 beta")
+        self.root.title("1VPN Desktop Lab — Premium y aplicaciones v0.4.3 beta")
         self.root.geometry("1080x780")
         self.root.minsize(960, 710)
         self.root.configure(bg=BG)
@@ -62,7 +62,7 @@ class DesktopApp:
     def _layout(self):
         shell = tk.Frame(self.root, bg=BG, padx=32, pady=22)
         shell.pack(fill="both", expand=True)
-        self._label(shell, "DESKTOP LAB  /  v0.4.2 beta  /  PREMIUM + HTTP + SOCKS5 + APPS", ACCENT, 11, True).pack(anchor="w")
+        self._label(shell, "DESKTOP LAB  /  v0.4.3 beta  /  PREMIUM + HTTP + SOCKS5 + APPS", ACCENT, 11, True).pack(anchor="w")
         self._label(shell, "Proxy y políticas de tráfico para Windows", TEXT, 23, True).pack(anchor="w", pady=(9, 4))
         self._label(
             shell, "Selección de servidores autorizados Free/Premium. No modifica Wintun ni rutas.",
@@ -141,7 +141,7 @@ class DesktopApp:
 
         self._label(shell, "RUTAS LOCALES (NO CAMBIAN LA RED DE WINDOWS)", ACCENT, 10, True).pack(anchor="w", pady=(16, 5))
         self._label(shell, "HTTP CONNECT y SOCKS5 TCP integrados. La captura por EXE requiere ProxiFyre externo.", TEXT, 10).pack(anchor="w")
-        self._label(shell, "En APLICACIONES / FIREWALL selecciona .exe en ejecución: PROXY, DIRECTO o BLOQUEAR.", MUTED, 10).pack(anchor="w", pady=(4, 4))
+        self._label(shell, "En APLICACIONES / FIREWALL: reglas por NOMBRE (chrome.exe), no por ruta.", MUTED, 10).pack(anchor="w", pady=(4, 4))
 
         self._label(shell, "REGISTRO LOCAL (SIN CREDENCIALES NI URLS DE NAVEGACIÓN)", MUTED, 9, True).pack(anchor="w", pady=(14, 5))
         self.logbox = tk.Text(shell, bg="#0a111d", fg=MUTED, insertbackground=TEXT,

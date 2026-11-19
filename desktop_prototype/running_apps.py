@@ -13,17 +13,21 @@ import os
 from pathlib import Path
 from typing import Callable, Iterable
 
-from traffic_policy import executable_key
+from traffic_policy import executable_key, normalize_app_name
 
 
 @dataclass(frozen=True)
 class RunningApp:
-    executable: str
+    # One row per EXE NAME, with all matching instances and actual paths.
+    name: str
     pids: tuple[int, ...]
+    paths: tuple[str, ...]
 
     @property
-    def name(self) -> str:
-        return Path(self.executable).name
+    def executable(self) -> str:
+        """Existing callers may need one actual path for optional launch."""
+        return self.paths[0]
+
 
 
 def _windows_processes() -> Iterable[tuple[int, str]]:
@@ -83,19 +87,28 @@ def _windows_processes() -> Iterable[tuple[int, str]]:
 def list_running_apps(
     source: Callable[[], Iterable[tuple[int, str]]] | None = None,
 ) -> list[RunningApp]:
-    """Group processes by full .exe path; a policy applies to all its PIDs."""
-    entries: dict[str, tuple[str, set[int]]] = {}
+    """Group ALL running instances by basename, regardless of install directory."""
+    entries: dict[str, dict] = {}
     for pid, path in (source or _windows_processes)():
         if type(pid) is not int or pid <= 0:
             continue
         if not isinstance(path, str) or not os.path.isabs(path) or not path.lower().endswith(".exe"):
             continue
-        # The image might have exited between enumeration and this read.
+        # A process can terminate between enumerating and resolving its path.
         if not Path(path).is_file():
             continue
-        key = executable_key(path)
-        if key not in entries:
-            entries[key] = (path, set())
-        entries[key][1].add(pid)
-    result = [RunningApp(path, tuple(sorted(pids))) for path, pids in entries.values()]
-    return sorted(result, key=lambda x: (x.name.casefold(), x.executable.casefold()))
+        try:
+            name = normalize_app_name(Path(path).name)
+        except ValueError:
+            continue
+        item = entries.setdefault(name, {"pids": set(), "paths": {}})
+        item["pids"].add(pid)
+        item["paths"][executable_key(path)] = path
+    return [
+        RunningApp(
+            name,
+            tuple(sorted(data["pids"])),
+            tuple(sorted(data["paths"].values(), key=str.casefold)),
+        )
+        for name, data in sorted(entries.items())
+    ]
