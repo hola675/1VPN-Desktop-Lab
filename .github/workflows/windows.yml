@@ -26,9 +26,15 @@ jobs:
         shell: pwsh
         working-directory: desktop_prototype
         run: python -m unittest discover -s tests -v
-      - name: Validar JavaScript de extensión Premium complementaria
+      - name: Validar JavaScript y rutas de cuenta Premium
         shell: pwsh
-        run: node --check browser_companion/popup.js
+        run: |
+          node --check browser_companion/account_url.js
+          if ($LASTEXITCODE -ne 0) { throw "Error de sintaxis en account_url.js" }
+          node --check browser_companion/popup.js
+          if ($LASTEXITCODE -ne 0) { throw "Error de sintaxis en popup.js" }
+          node --test browser_companion/tests/account_url.test.js
+          if ($LASTEXITCODE -ne 0) { throw "Fallaron las pruebas de URLs Premium" }
       - name: Crear exe sin driver
         shell: pwsh
         working-directory: desktop_prototype
