@@ -1,3 +1,15 @@
+## v0.7-qt-preview-alpha — frontend PySide6 paralelo (2026-11-19)
+
+- Nuevo frontend profesional PySide6/Qt con navegación Inicio / Aplicaciones / Cuenta / Ajustes / Actividad.
+- Reutiliza directamente NetworkEngine, AutoSelector, AccessProxy, PremiumBrowserBridge, PolicyStore y motores WFP.
+- Inicio funcional: conectar/desconectar, verificar IP, medir servidor y mostrar ruta directa/proxy corporativo.
+- Aplicaciones: procesos, políticas DIRECTO/PROXY/BLOQUEAR, BLOQUEO WFP y sesión PROXY WFP.
+- Cuenta: Premium web + Browser Companion y login Email/2FA.
+- Ajustes: proxy corporativo, servidor manual, puertos y estado del driver.
+- QSS/design system propio en qt_theme.py.
+- Build/artefacto Qt separado: la UI Tkinter v0.6.1 continúa estable y disponible.
+- CI Qt offscreen + PyInstaller + smoke del EXE.
+
 ## v0.6.1-network-access-proxy — redes corporativas con proxy (2026-11-19)
 
 - Nuevo salto de acceso HTTP CONNECT antes de 1VPN: OneTunnel -> proxy de red -> servidor 1VPN.
