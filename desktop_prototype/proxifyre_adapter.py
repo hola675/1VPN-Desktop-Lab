@@ -12,11 +12,10 @@ UDP, DNS, DoH, IPv6, and a kill switch are NOT guaranteed by this profile.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Iterable
 
-from traffic_policy import AppPolicy, executable_key, normalize_executable
+from traffic_policy import AppPolicy, app_name_from_path, normalize_app_name
 
 # ProxiFyre performs permissive name matching for its excludes; keep these
 # focused on transport owners/critical processes, not generic broad names.
@@ -43,41 +42,39 @@ def build_proxifyre_draft(
 ) -> dict:
     """Build a *non-active*, secret-free app-config draft from explicit choices.
 
-    Only saved TRANSPARENT policies are exported. Targets must exist, be
+    Only saved TRANSPARENT policies are exported. Targets must have literal names, be
     unique and not be an essential Windows process, the proxy carrier, or
     an executable with a known outbound BLOCK firewall rule.
     """
     if type(socks5_port) is not int or not 1 <= socks5_port <= 65535:
         raise ValueError("Puerto SOCKS5 local inválido")
-    blocked = {executable_key(p) for p in managed_firewall_programs}
+    blocked = {app_name_from_path(p) for p in managed_firewall_programs}
     chosen: list[str] = []
     direct: list[str] = []
     seen: set[str] = set()
     for policy in policies:
         if policy.mode not in ("TRANSPARENT", "DIRECT"):
             continue
-        exe = normalize_executable(policy.executable)
-        name = Path(exe).name.casefold()
-        key = executable_key(exe)
-        if key in seen:
-            raise ValueError("Hay ejecutables duplicados")
-        seen.add(key)
+        # A ProxiFyre appNames entry without a slash is an exact EXE-name match
+        # (case-insensitive), independent of the program's installation path.
+        name = normalize_app_name(policy.executable)
+        if name in seen:
+            raise ValueError("Hay nombres de aplicaciones duplicados")
+        seen.add(name)
         if policy.mode == "DIRECT":
-            # Explicit process-level bypass. Also guards against a future
-            # catch-all rule in a separately managed ProxiFyre config.
-            direct.append(exe)
+            direct.append(name)
             continue
         if name in DENIED_TARGETS:
             raise ValueError(
-                "No se permite redirigir el ejecutable del motor, ProxiFyre "
+                "No se permite redirigir el motor, ProxiFyre "
                 "o un proceso esencial de Windows"
             )
-        if key in blocked:
+        if name in blocked:
             raise ValueError(
                 "La aplicación tiene un BLOQUEO saliente gestionado; "
                 "retira esa regla antes de configurar PROXY"
             )
-        chosen.append(exe)
+        chosen.append(name)
         if len(chosen) > MAX_TARGET_APPS:
             raise ValueError("Demasiadas aplicaciones seleccionadas para este laboratorio")
 
@@ -125,6 +122,7 @@ def describe_proxifyre_draft(config: dict) -> str:
         "DNS: DIRECTO (riesgo de fuga DNS)",
         "UDP/QUIC: NO protegido por este puente; puede salir directo",
         "LAN: DIRECTA por decisión explícita",
+        "Nota: las exclusiones ProxiFyre comparan por subcadena y pueden afectar nombres similares",
         "Sin kill switch; NO garantiza ausencia de fugas",
         "No se instaló ningún controlador ni se modificó el firewall",
         "Debe aplicarse manualmente con ProxiFyre oficial, tras revisar sus opciones",
