@@ -224,3 +224,11 @@ HTTP 403 no indica que la cuenta web sea inválida.
 En **APLICACIONES / FIREWALL**, OneTunnel muestra programas Windows en ejecución con sus PID y permite seleccionar políticas **PROXY**, **DIRECTO** y **BLOQUEAR** por ruta completa del ejecutable. La elección se aplica a todas las instancias del mismo EXE, no a dominios/IP. El bloqueo saliente usa Windows Firewall y exige confirmación/administrador. Para redirección transparente PROXY se necesita **ProxiFyre + Windows Packet Filter** instalados externamente; esta versión genera una configuración de prueba que debe revisarse/aplicarse en la GUI oficial de ProxiFyre. Ningún controlador se instala automáticamente ni se alteran rutas del sistema. **UDP/QUIC/DNS no están protegidos por este puente TCP** y no existe kill switch certificado.
 
 Consulta [guía y pruebas por EXE](docs/PROXIFYRE-POR-EXE-V042.md).
+
+## Reglas por NOMBRE de programa — v0.4.3 beta
+
+El panel **APLICACIONES / FIREWALL** ahora muestra un registro por nombre de proceso, con todos sus PID, aunque existan varias instalaciones en carpetas distintas. Puedes elegir, por ejemplo, **chrome.exe → PROXY**, **telegram.exe → DIRECTO** o **curl.exe → BLOQUEAR**, sin introducir rutas ni destinos IP. El exportador ProxiFyre usa `appNames: ["chrome.exe"]` en vez de rutas. La identidad por nombre abarca cualquier programa con ese basename.
+
+**Limitación:** Windows Firewall necesita rutas concretas para BLOQUEAR, por lo que el botón aplica bloqueo a las copias actualmente detectadas (y a cualquier archivo elegido manualmente). Las copias futuras en otras carpetas no están automáticamente protegidas. PROXY no es efectivo hasta aplicar el perfil en ProxiFyre externo; no hay kill switch, y DNS/UDP/IPv6 aún necesitan desarrollo.
+
+Lee la [guía y migración de políticas por nombre](docs/POLITICAS-POR-NOMBRE-EXE-V043.md).
