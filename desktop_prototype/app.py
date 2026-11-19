@@ -609,7 +609,6 @@ class DesktopApp:
             self.address.configure(text="Pendiente de verificar · pulsa VERIFICAR SALIDA")
             if access_proxy is None:
                 self.engine_status.configure(text="WFP nativo · red directa", fg=ui.SUCCESS)
-        self._update_access_proxy_ui()
                 self._log("Conexión a 1VPN: acceso directo desde la red local.")
             else:
                 self.engine_status.configure(
@@ -717,6 +716,7 @@ class DesktopApp:
         self.session += 1
         self.engine.stop()
         self._premium_proxy_active = False
+        self._active_access_proxy = None
         self._egress_verified = False
         self._verified_exit_ip = None
         self.selector = None
@@ -730,6 +730,7 @@ class DesktopApp:
         self.status.configure(text="Desconectado", fg=TEXT)
         self.address.configure(text="IP sin verificar", fg=TEXT)
         self.engine_status.configure(text="WFP nativo · red directa", fg=ui.SUCCESS)
+        self._update_access_proxy_ui()
 
     def close(self):
         # Teardown order: PROXY BFE filters -> ephemeral BLOCK filters ->
