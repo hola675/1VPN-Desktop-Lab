@@ -17,14 +17,22 @@ SOURCE_INF = ROOT / "native" / "driver" / "OneTunnelRedirect.inf"
 
 
 class FakeService:
-    def __init__(self, events):
+    def __init__(self, events, state):
         self.events = events
+        self.shared = state
+
+    def state(self):
+        return 4 if self.shared["running"] else 1
 
     def start(self):
-        self.events.append("start")
+        if not self.shared["running"]:
+            self.events.append("start")
+            self.shared["running"] = True
 
     def stop(self):
-        self.events.append("stop")
+        if self.shared["running"]:
+            self.events.append("stop")
+            self.shared["running"] = False
 
 
 class DriverPackageVerificationTests(unittest.TestCase):
@@ -113,7 +121,9 @@ class DriverLifecycleTests(unittest.TestCase):
             True,
         )
 
-    def lifecycle(self, *, reboot=False, verify_error=None, admin=True):
+    def lifecycle(self, *, reboot=False, verify_error=None, admin=True, running=False):
+        service_state = {"running": running}
+
         def verifier(_directory):
             self.events.append("verify")
             if verify_error:
@@ -132,7 +142,7 @@ class DriverLifecycleTests(unittest.TestCase):
             verifier=verifier,
             installer=installer,
             uninstaller=uninstaller,
-            service_factory=lambda: FakeService(self.events),
+            service_factory=lambda: FakeService(self.events, service_state),
             admin_check=lambda: admin,
         )
 
@@ -196,7 +206,7 @@ class DriverLifecycleTests(unittest.TestCase):
         self.assertEqual(self.events, ["verify"])
 
     def test_uninstall_stops_service_before_driver_store_removal(self):
-        lifecycle = self.lifecycle()
+        lifecycle = self.lifecycle(running=True)
         result = lifecycle.uninstall("ignored")
         self.assertEqual(
             self.events,
@@ -207,7 +217,23 @@ class DriverLifecycleTests(unittest.TestCase):
     def test_start_and_stop_are_explicit_admin_operations(self):
         lifecycle = self.lifecycle()
         lifecycle.start()
+        self.assertTrue(lifecycle.started_by_this_instance)
         lifecycle.stop()
+        self.assertFalse(lifecycle.started_by_this_instance)
+        self.assertEqual(self.events, ["start", "stop"])
+
+    def test_preexisting_running_service_is_not_owned_or_stopped_on_cleanup(self):
+        lifecycle = self.lifecycle(running=True)
+        lifecycle.start()
+        self.assertFalse(lifecycle.started_by_this_instance)
+        self.assertFalse(lifecycle.stop_if_owned())
+        self.assertEqual(self.events, [])
+
+    def test_owned_service_is_stopped_by_cleanup(self):
+        lifecycle = self.lifecycle()
+        lifecycle.start()
+        self.assertTrue(lifecycle.stop_if_owned())
+        self.assertFalse(lifecycle.started_by_this_instance)
         self.assertEqual(self.events, ["start", "stop"])
 
     def test_no_unsigned_bypass_language_in_runtime(self):
