@@ -142,7 +142,7 @@ jobs:
       - name: Guardar artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: OneTunnel-v0.5.2-native-control-alpha-win-x64
+          name: OneTunnel-v0.5.3-signed-driver-alpha-win-x64
           path: desktop_prototype/dist/1VPN-Desktop-Lab.exe
           if-no-files-found: error
           retention-days: 14
