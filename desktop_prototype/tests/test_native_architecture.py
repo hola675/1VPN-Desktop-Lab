@@ -19,11 +19,13 @@ class NativeArchitectureGuardrails(unittest.TestCase):
         panel = (ROOT / "control_panel.py").read_text(encoding="utf-8")
         self.assertNotIn("legacy_firewall.block(", panel)
 
-    def test_proxy_is_not_claimed_ready_without_callout(self):
+    def test_proxy_status_comes_from_live_native_session_not_bundled_binaries(self):
         redirect = (ROOT / "native_redirect.py").read_text(encoding="utf-8")
         self.assertIn("callout_driver_ready: bool = False", redirect)
         panel = (ROOT / "control_panel.py").read_text(encoding="utf-8")
-        self.assertIn("Callout driver WFP firmado/cargado: PENDIENTE", panel)
+        self.assertIn("proxy_active = self.native_proxy.active()", panel)
+        self.assertIn("driver_running = self.driver_lifecycle.service_running()", panel)
+        self.assertNotIn('proxy = "LISTO" if capability.transparent_proxy_ready', panel)
 
     def test_driver_install_is_never_automatic_on_app_startup(self):
         app = (ROOT / "app.py").read_text(encoding="utf-8")
