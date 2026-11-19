@@ -543,9 +543,7 @@ class OneTunnelQt(QMainWindow):
         self.signals.scan_result.connect(self._on_scan_result)
         self.signals.premium_session.connect(self._on_premium_session)
         self.signals.account_result.connect(self._on_premium_session)
-        self.signals.account_failed.connect(
-            lambda msg: QMessageBox.warning(self, "Cuenta 1VPN", msg)
-        )
+        self.signals.account_failed.connect(self._on_account_failed)
 
     def _show_page(self, index: int):
         self.stack.setCurrentIndex(index)
@@ -711,6 +709,9 @@ class OneTunnelQt(QMainWindow):
         self._lock_settings(False)
         self._update_connection_ui(False)
         self.exit_value.setText("IP sin verificar")
+        self.exit_value.setObjectName("CardValue")
+        self.exit_value.style().unpolish(self.exit_value)
+        self.exit_value.style().polish(self.exit_value)
         self.server_value.setText("Automático · sin medir")
         self.route_value.setText("Red directa")
         self._append_log("Conexión detenida.")
@@ -1050,6 +1051,12 @@ class OneTunnelQt(QMainWindow):
                 )
 
         threading.Thread(target=worker, daemon=True, name="qt-account-login").start()
+
+    def _on_account_failed(self, message: str):
+        self.account_state.setText("No se pudo iniciar sesión")
+        self.password_input.clear()
+        self.twofa_input.clear()
+        QMessageBox.warning(self, "Cuenta 1VPN", message)
 
     def logout_account(self):
         self.account_session = None
