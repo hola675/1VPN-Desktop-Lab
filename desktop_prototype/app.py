@@ -1,4 +1,4 @@
-"""OneTunnel v0.6: interfaz premium sobre motor Premium/WFP nativo v0.5.5."""
+"""OneTunnel v0.6.1: Premium UI + proxy de acceso de red + motor WFP nativo."""
 from __future__ import annotations
 
 import os
@@ -87,7 +87,7 @@ class DesktopApp:
         brand = tk.Frame(header, bg=BG)
         brand.pack(side="left")
         ui.label(brand, "OneTunnel", color=TEXT, size=22, bold=True).pack(side="left")
-        ui.badge(brand, "v0.6 PREMIUM UI", tone="accent").pack(side="left", padx=(10, 0))
+        ui.badge(brand, "v0.6.1 PREMIUM UI", tone="accent").pack(side="left", padx=(10, 0))
         ui.label(
             header,
             "VPN por aplicación · motor WFP nativo",
