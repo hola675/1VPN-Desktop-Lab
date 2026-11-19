@@ -32,20 +32,25 @@ try {
     $Helper = Join-Path $NativeDir 'onetunnel-wfp-guard.exe'
     $Relay = Join-Path $NativeDir 'onetunnel-transparent-relay.exe'
     $Control = Join-Path $NativeDir 'onetunnel-wfp-control.exe'
+    $Probe = Join-Path $NativeDir 'onetunnel-egress-probe.exe'
     if (-not (Test-Path $Helper)) { throw 'No existe el helper WFP' }
     if (-not (Test-Path $Relay)) { throw 'No existe el relay transparente' }
     if (-not (Test-Path $Control)) { throw 'No existe el control plane WFP' }
+    if (-not (Test-Path $Probe)) { throw 'No existe el probe de certificación WFP' }
     & $Relay --self-test
     if ($LASTEXITCODE -ne 0) { throw 'Falló el self-test del relay transparente' }
     & $Control --self-test
     if ($LASTEXITCODE -ne 0) { throw 'Falló el self-test del control plane WFP' }
+    & $Probe --self-test
+    if ($LASTEXITCODE -ne 0) { throw 'Falló el self-test del probe NO_PROXY' }
     $PyInstallerArgs = @(
         '-m', 'PyInstaller',
         '--noconfirm', '--clean', '--windowed', '--onefile',
         '--name', '1VPN-Desktop-Lab',
         '--add-binary', "$Helper;.",
         '--add-binary', "$Relay;.",
-        '--add-binary', "$Control;."
+        '--add-binary', "$Control;.",
+        '--add-binary', "$Probe;."
     )
 
     if ($SignedDriverDirectory) {

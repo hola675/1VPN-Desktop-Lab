@@ -1,3 +1,9 @@
+## v0.5.5 alpha — certificación del PROXY WFP nativo
+
+OneTunnel incluye ahora un probe propio `onetunnel-egress-probe.exe` que usa WinHTTP con `NO_PROXY` y permite demostrar, mediante el botón **CERTIFICAR PROXY (LAB)**, que una conexión HTTPS fue redirigida transparentemente por nuestro callout WFP + relay + SOCKS5 y salió con la misma IP Premium previamente verificada. La prueba es explícita, temporal y retira sus filtros al terminar. No instala ni firma drivers y no sustituye la auditoría pendiente de UDP/DNS/QUIC/IPv6/kill switch.
+
+Guía: [Certificación nativa v0.5.5](docs/NATIVE-PROXY-CERTIFICATION-V055.md).
+
 ## v0.5.4 — driver firmado embebible en release (alpha)
 
 La build de release admite ahora `ONETUNNEL_SIGNED_DRIVER_DIR`. Solo si Windows verifica mediante `SetupVerifyInfFileW` un paquete Microsoft-signed completo, PyInstaller integra INF/CAT/SYS dentro del EXE y la UI lo detecta automáticamente. Sin esa variable, la build de desarrollo NO incorpora ningún paquete kernel.

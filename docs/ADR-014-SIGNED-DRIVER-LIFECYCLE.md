@@ -82,3 +82,8 @@ El paquete unsigned sirve exclusivamente para validar reproducibilidad y estruct
 - Driver package signing / catalog files
 - InfVerif e Inf2Cat
 - WFP callout driver installation
+
+
+## Extensión v0.5.5 — certificación transparente
+
+Una vez que el paquete firmado está instalado y el servicio/callout RUNNING, la validación funcional se realiza con el probe propio `onetunnel-egress-probe.exe` y no con parámetros de proxy de terceros. La prueba usa WinHTTP NO_PROXY, activa filtros BFE temporales solo para ese binario, compara su IP HTTPS con la IP Premium verificada y elimina la sesión al terminar. Ver [NATIVE-PROXY-CERTIFICATION-V055.md](NATIVE-PROXY-CERTIFICATION-V055.md).
