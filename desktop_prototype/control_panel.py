@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from firewall_rules import FirewallManager, rule_name
-from traffic_policy import AppPolicy, PolicyStore, normalize_executable, executable_key
+from traffic_policy import AppPolicy, PolicyStore, app_name_from_path, normalize_app_name, executable_key
 from running_apps import list_running_apps
 from proxifyre_adapter import (
     DRAFT_FILE_NAME, DENIED_TARGETS, build_proxifyre_draft, describe_proxifyre_draft,
@@ -36,6 +36,7 @@ class TrafficControlPanel:
         self.verified_getter = verified_getter or (lambda: False)
         self.store = PolicyStore()
         self.firewall = FirewallManager()
+        self._browsed_paths: dict[str, set[str]] = {}
         self.win = tk.Toplevel(parent)
         self.win.title("1VPN Desktop Lab — Aplicaciones y firewall")
         self.win.geometry("1120x780")
@@ -57,14 +58,15 @@ class TrafficControlPanel:
     def _layout(self):
         body = tk.Frame(self.win, bg=BG, padx=22, pady=18)
         body.pack(fill="both", expand=True)
-        self._label(body, "APLICACIONES EN EJECUCIÓN / POLÍTICAS POR .EXE", ACCENT, 15).pack(anchor="w")
+        self._label(body, "APLICACIONES EN EJECUCIÓN / REGLAS POR NOMBRE .EXE", ACCENT, 15).pack(anchor="w")
         self._label(body, "PROXY: ProxiFyre + Windows Packet Filter externos · DIRECTO: excluido · BLOQUEAR: Firewall (admin)",
                     "#ffcc87").pack(anchor="w", pady=(5, 14))
         row = tk.Frame(body, bg=BG)
         row.pack(fill="x")
-        self.path = tk.Entry(row, bg=PANEL, fg=TEXT, insertbackground=TEXT, font=("Consolas", 10))
-        self.path.pack(side="left", expand=True, fill="x")
-        self._button(row, "Elegir .exe", self.browse).pack(side="left", padx=8)
+        self.app_name = tk.Entry(row, bg=PANEL, fg=TEXT, insertbackground=TEXT, font=("Consolas", 10))
+        self.app_name.insert(0, "chrome.exe")
+        self.app_name.pack(side="left", expand=True, fill="x")
+        self._button(row, "Buscar aplicación .exe", self.browse).pack(side="left", padx=8)
         modes = list(MODE_LABELS.values())
         self.mode = ttk.Combobox(row, values=modes, state="readonly", width=32)
         self.mode.current(0)
@@ -83,7 +85,7 @@ class TrafficControlPanel:
         self._label(body, "PROCESOS EN EJECUCIÓN — selecciona un .exe para elegir PROXY / DIRECTO / BLOQUEAR",
                     ACCENT, 10).pack(anchor="w", pady=(4, 3))
         self._button(body, "Actualizar aplicaciones en ejecución", self.refresh_running).pack(anchor="w", pady=(0, 6))
-        running_columns = ("exe", "pids", "policy", "path")
+        running_columns = ("exe", "pids", "policy", "instances")
         self.running_tree = ttk.Treeview(
             body, columns=running_columns, show="headings", height=8, selectmode="browse"
         )
@@ -91,7 +93,7 @@ class TrafficControlPanel:
             ("exe", "Aplicación (.exe)", 190),
             ("pids", "Procesos (PID)", 140),
             ("policy", "Política", 225),
-            ("path", "Ruta del ejecutable", 470),
+            ("instances", "Ubicaciones en ejecución", 180),
         ):
             self.running_tree.heading(name, text=title)
             self.running_tree.column(name, width=width, anchor="w")
@@ -100,59 +102,83 @@ class TrafficControlPanel:
         self._running_index: dict[str, str] = {}
         self._label(body, "POLÍTICAS GUARDADAS (cualquier instancia del mismo ejecutable)",
                     ACCENT, 10).pack(anchor="w", pady=(4, 3))
-        columns = ("path", "mode", "firewall")
+        columns = ("name", "mode", "firewall")
         self.tree = ttk.Treeview(body, columns=columns, show="headings", height=7, selectmode="browse")
-        for key, label, width in (("path", "Ejecutable", 430), ("mode", "Política", 245),
+        for key, label, width in (("name", "Nombre EXE (cualquier carpeta)", 310), ("mode", "Política", 245),
                                   ("firewall", "Regla gestionada", 135)):
             self.tree.heading(key, text=label)
             self.tree.column(key, width=width, anchor="w")
         self.tree.pack(fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", self.select_rule)
-        self.info = self._label(body, "PROXY requiere ProxiFyre/WinpkFilter instalado y activo; DIRECTO excluye, BLOQUEAR usa Firewall.", "#a9bdd9")
+        self.info = self._label(body, "Nombre como chrome.exe (sin ruta). PROXY: ProxiFyre; BLOQUEAR: firewall por rutas detectadas.", "#a9bdd9")
         self.info.pack(anchor="w", pady=10)
 
+    def _choose_name(self, name: str):
+        name = normalize_app_name(name)
+        self.app_name.delete(0, "end")
+        self.app_name.insert(0, name)
+
     def browse(self):
-        path = filedialog.askopenfilename(parent=self.win, filetypes=[("Programas Windows", "*.exe")])
+        path = filedialog.askopenfilename(
+            parent=self.win, filetypes=[("Programas Windows", "*.exe")]
+        )
         if path:
-            self.path.delete(0, "end")
-            self.path.insert(0, path)
+            name = app_name_from_path(path)
+            self._browsed_paths.setdefault(name, set()).add(path)
+            self._choose_name(name)
+            self.info.configure(
+                text=f"{name} seleccionado. La política se guarda por NOMBRE y "
+                     "abarca cualquier carpeta; Firewall usa rutas detectadas."
+            )
+
+    def _managed_paths(self, app_name: str) -> list[str]:
+        name = normalize_app_name(app_name)
+        return sorted(
+            {p for p in self.firewall.managed().values()
+             if app_name_from_path(p) == name},
+            key=str.casefold,
+        )
 
     def refresh(self):
         self.tree.delete(*self.tree.get_children())
         try:
-            managed = self.firewall.managed()
             for rule in self.store.load():
-                active = "Firewall activo" if rule_name(rule.executable) in managed else "Sin bloqueo aplicado"
-                self.tree.insert("", "end", values=(rule.executable, MODE_LABELS[rule.mode], active))
+                count = len(self._managed_paths(rule.executable))
+                state = f"Bloqueadas {count} ruta(s)" if count else "Sin bloqueo aplicado"
+                self.tree.insert(
+                    "", "end",
+                    values=(rule.executable, MODE_LABELS[rule.mode], state),
+                )
             self.refresh_running()
-        except Exception as e:
-            messagebox.showerror("Políticas", str(e), parent=self.win)
+        except (OSError, ValueError, RuntimeError) as error:
+            messagebox.showerror("Políticas", str(error), parent=self.win)
 
     def refresh_running(self):
-        """Refresh EXE/PID data without losing the selected row or editing inputs."""
+        """Show one application per basename and all its PID instances."""
         if not hasattr(self, "running_tree"):
             return
         try:
-            modes = {executable_key(p.executable): p.mode for p in self.store.load()}
+            modes = {p.executable: p.mode for p in self.store.load()}
             new_index: dict[str, str] = {}
-            apps = list_running_apps()
-            for index, app in enumerate(apps):
-                key = executable_key(app.executable)
-                iid = "exe-" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
+            for index, app in enumerate(list_running_apps()):
+                iid = "name-" + hashlib.sha256(
+                    app.name.encode("utf-8")
+                ).hexdigest()[:32]
                 pids = ", ".join(str(pid) for pid in app.pids[:7])
                 if len(app.pids) > 7:
                     pids += f" (+{len(app.pids) - 7})"
                 values = (
                     app.name, pids,
-                    MODE_LABELS[modes[key]] if key in modes else "SIN REGLA (directo)",
-                    app.executable,
+                    MODE_LABELS[modes[app.name]] if app.name in modes
+                    else "SIN REGLA (directo)",
+                    str(len(app.paths)),
                 )
                 if self.running_tree.exists(iid):
                     self.running_tree.item(iid, values=values)
                 else:
                     self.running_tree.insert("", "end", iid=iid, values=values)
                 self.running_tree.move(iid, "", index)
-                new_index[iid] = app.executable
+                new_index[iid] = app.name
             for iid in self.running_tree.get_children():
                 if iid not in new_index:
                     self.running_tree.delete(iid)
@@ -170,96 +196,151 @@ class TrafficControlPanel:
         selection = self.running_tree.selection()
         if not selection:
             return
-        executable = self._running_index.get(selection[0])
-        if not executable:
+        name = self._running_index.get(selection[0])
+        if not name:
             return
-        self.path.delete(0, "end")
-        self.path.insert(0, executable)
+        self._choose_name(name)
         policy = next(
-            (p for p in self.store.load()
-             if executable_key(p.executable) == executable_key(executable)), None
+            (p for p in self.store.load() if p.executable == name), None
         )
         self.mode.set(MODE_LABELS[policy.mode] if policy else MODE_LABELS["DIRECT"])
         self.info.configure(
-            text=f"Seleccionado: {Path(executable).name}. La política se aplica a "
-                 "todas las instancias de este .exe, NO a una dirección o dominio."
+            text=f"Seleccionado {name}: la regla cubre TODOS los procesos con "
+                 "ese nombre sin importar su carpeta de instalación."
         )
 
     def select_rule(self, _event=None):
         items = self.tree.selection()
         if not items:
             return
-        exe, mode, _ = self.tree.item(items[0], "values")
-        self.path.delete(0, "end")
-        self.path.insert(0, exe)
+        name, mode, _ = self.tree.item(items[0], "values")
+        self._choose_name(name)
         self.mode.set(mode)
 
-    def _selected(self):
-        return normalize_executable(self.path.get())
+    def _selected(self) -> str:
+        return normalize_app_name(self.app_name.get())
 
     def _mode(self):
-        return next(code for code, label in MODE_LABELS.items() if label == self.mode.get())
+        return next(code for code, label in MODE_LABELS.items()
+                    if label == self.mode.get())
 
     def save_rule(self):
         try:
-            exe = self._selected()
+            name = self._selected()
             mode = self._mode()
-            if mode in {"TRANSPARENT", "BLOCK"} and Path(exe).name.casefold() in DENIED_TARGETS:
+            if mode in {"TRANSPARENT", "BLOCK"} and name in DENIED_TARGETS:
                 raise ValueError(
-                    "No se permite capturar ni bloquear el motor OneTunnel, "
-                    "ProxiFyre, Xray o procesos esenciales de Windows"
+                    "No se puede capturar ni bloquear el motor VPN "
+                    "o un proceso esencial de Windows"
                 )
-            if mode != "BLOCK" and rule_name(exe) in self.firewall.managed():
-                raise RuntimeError("Retira el bloqueo de firewall antes de cambiar la política")
-            self.store.upsert(AppPolicy(exe, mode))
+            if mode != "BLOCK" and self._managed_paths(name):
+                raise RuntimeError(
+                    "Retira primero los bloqueos de firewall de este nombre EXE"
+                )
+            self.store.upsert(AppPolicy(name, mode))
             self.refresh()
             if mode == "BLOCK":
-                state = "BLOQUEO guardado; aplica Windows Firewall con su botón y confirmación."
+                state = "BLOQUEAR guardado; pulsa Aplicar BLOQUEO para rutas actuales."
             elif mode == "TRANSPARENT":
-                state = "PROXY guardado; prepara el perfil y actívalo manualmente con ProxiFyre."
+                state = "PROXY guardado por nombre; aplica el borrador en ProxiFyre."
+            elif mode == "DIRECT":
+                state = "DIRECTO guardado por nombre; actualiza ProxiFyre."
             else:
-                state = "Política guardada. DIRECTO requiere incluir la exclusión en ProxiFyre activo."
+                state = "Solo apps compatibles con variables de entorno pueden usar proxy manual."
             self.info.configure(text=state)
-        except Exception as e:
-            messagebox.showerror("Guardar política", str(e), parent=self.win)
+        except (OSError, ValueError, RuntimeError) as error:
+            messagebox.showerror("Guardar política", str(error), parent=self.win)
+
+    def _known_paths_for(self, app_name: str) -> list[str]:
+        name = normalize_app_name(app_name)
+        paths = set(self._managed_paths(name))
+        paths.update(self._browsed_paths.get(name, ()))
+        for app in list_running_apps():
+            if app.name == name:
+                paths.update(app.paths)
+        # Firewall's Windows native program filter requires concrete paths.
+        return sorted((p for p in paths if Path(p).is_file()), key=str.casefold)
 
     def block(self):
         try:
-            exe = self._selected()
-            if Path(exe).name.casefold() in DENIED_TARGETS:
-                raise ValueError("Se ha protegido este proceso esencial o portador de VPN contra bloqueos")
-            if not messagebox.askyesno("Confirmar bloqueo", f"Se bloquearán las conexiones SALIENTES de:\n{exe}\n\n"
-                                       "Esto puede desconectar el programa. ¿Continuar?", parent=self.win):
+            name = self._selected()
+            if name in DENIED_TARGETS:
+                raise ValueError("Este proceso esencial o portador VPN está protegido")
+            paths = self._known_paths_for(name)
+            if not paths:
+                raise RuntimeError(
+                    f"No hay rutas ejecutables detectadas para {name}. "
+                    "Abre esa aplicación o utiliza Buscar aplicación .exe."
+                )
+            prompt = (
+                f"Bloquear conexiones salientes de {name} en {len(paths)} "
+                "ruta(s) detectada(s).\n\n"
+                "Windows Firewall necesita rutas internas: cualquier copia "
+                "NUEVA en otra carpeta no quedará bloqueada automáticamente.\n\n"
+                "¿Aplicar esas reglas con permisos de administrador?"
+            )
+            if not messagebox.askyesno("Confirmar bloqueo por aplicación",
+                                       prompt, parent=self.win):
                 return
-            self.firewall.block(exe)
-            self.store.upsert(AppPolicy(exe, "BLOCK"))
+            existing = set(self.firewall.managed())
+            created: list[str] = []
+            try:
+                for exe in paths:
+                    rule_id = self.firewall.block(exe)
+                    if rule_id not in existing:
+                        created.append(exe)
+                self.store.upsert(AppPolicy(name, "BLOCK"))
+            except Exception:
+                # Attempt to roll back only newly created own rules.
+                for exe in reversed(created):
+                    try:
+                        self.firewall.unblock(exe)
+                    except Exception:
+                        pass
+                raise
             self.refresh()
-            self.info.configure(text="Regla de bloqueo aplicada. Puede retirarse desde este panel.")
-        except Exception as e:
-            messagebox.showerror("Firewall", str(e), parent=self.win)
+            self.info.configure(
+                text=f"BLOQUEAR aplicado a {len(paths)} ruta(s) de {name}; "
+                     "las copias futuras requieren actualizar el bloqueo."
+            )
+        except (OSError, ValueError, RuntimeError, PermissionError) as error:
+            messagebox.showerror("Firewall", str(error), parent=self.win)
 
     def unblock(self):
         try:
-            # Permitir retirar una regla incluso si el archivo EXE fue desinstalado.
-            exe = self.path.get().strip().strip('"')
-            if not os.path.isabs(exe) or not exe.lower().endswith(".exe"):
-                raise ValueError("Es necesaria una ruta absoluta a un ejecutable .exe")
-            if messagebox.askyesno("Retirar bloqueo", f"¿Retirar la regla gestionada de {Path(exe).name}?", parent=self.win):
-                removed = self.firewall.unblock(exe)
-                self.refresh()
-                self.info.configure(text="Regla retirada." if removed else "No existía una regla gestionada.")
-        except Exception as e:
-            messagebox.showerror("Firewall", str(e), parent=self.win)
+            name = self._selected()
+            paths = self._managed_paths(name)
+            if not paths:
+                self.info.configure(text=f"{name}: no hay bloqueos propios aplicados.")
+                return
+            if not messagebox.askyesno(
+                "Retirar bloqueos",
+                f"¿Retirar {len(paths)} regla(s) de firewall administradas "
+                f"para {name}?\nEsto no afecta reglas de otros productos.",
+                parent=self.win,
+            ):
+                return
+            for exe in paths:
+                self.firewall.unblock(exe)
+            # Do not leave a policy displayed as BLOCK when its rules were removed.
+            self.store.upsert(AppPolicy(name, "DIRECT"))
+            self.refresh()
+            self.info.configure(text=f"Bloqueos retirados; {name} queda DIRECTO.")
+        except (OSError, ValueError, RuntimeError, PermissionError) as error:
+            messagebox.showerror("Firewall", str(error), parent=self.win)
 
     def delete_rule(self):
         try:
-            exe = self._selected()
-            if rule_name(exe) in self.firewall.managed():
-                raise RuntimeError("Retira primero la regla de firewall y luego elimina la política")
-            self.store.delete(exe)
+            name = self._selected()
+            if self._managed_paths(name):
+                raise RuntimeError(
+                    "Retira primero todas las reglas de firewall de este nombre EXE"
+                )
+            self.store.delete(name)
             self.refresh()
-        except Exception as e:
-            messagebox.showerror("Eliminar política", str(e), parent=self.win)
+            self.info.configure(text=f"Política de {name} eliminada.")
+        except (OSError, ValueError, RuntimeError) as error:
+            messagebox.showerror("Eliminar política", str(error), parent=self.win)
 
     def prepare_proxifyre(self):
         """Create a review-only config, without installing or starting drivers."""
@@ -349,13 +430,33 @@ class TrafficControlPanel:
 
     def launch_with_proxy(self):
         try:
-            exe = self._selected()
+            name = self._selected()
+            matches = [app for app in list_running_apps() if app.name == name]
+            paths = sorted(
+                set(matches[0].paths) if matches else set()
+            ) if matches else sorted(self._browsed_paths.get(name, ()))
+            if not paths:
+                raise RuntimeError(
+                    f"No encuentro una instalación ejecutable de {name}. "
+                    "Abre la aplicación o selecciónala con Buscar aplicación .exe."
+                )
+            if len(paths) != 1:
+                raise RuntimeError(
+                    f"Hay {len(paths)} instalaciones activas de {name}. "
+                    "No se iniciará ninguna automáticamente: usa la aplicación "
+                    "existente para evitar escoger una ruta equivocada."
+                )
             endpoints = self.endpoint_getter()
             if endpoints is None:
                 raise RuntimeError("Inicia primero el motor integrado HTTP/SOCKS5")
-            if not messagebox.askyesno("Iniciar aplicación", "Solo afecta programas que respetan HTTP_PROXY/HTTPS_PROXY/ALL_PROXY.\n"
-                                       "No es captura transparente. ¿Abrir el programa?", parent=self.win):
+            if not messagebox.askyesno(
+                "Iniciar aplicación",
+                f"Solo afecta aplicaciones que respetan variables de proxy. "
+                f"¿Iniciar otra instancia de {name}?",
+                parent=self.win,
+            ):
                 return
+            exe = paths[0]
             env = os.environ.copy()
             env.update({
                 "HTTP_PROXY": f"http://127.0.0.1:{endpoints.http_port}",
@@ -364,6 +465,6 @@ class TrafficControlPanel:
                 "NO_PROXY": "localhost,127.0.0.1,::1",
             })
             subprocess.Popen([exe], env=env, cwd=str(Path(exe).parent))
-            self.info.configure(text=f"Iniciada {Path(exe).name} con variables proxy. La aplicación puede ignorarlas.")
-        except Exception as e:
-            messagebox.showerror("Iniciar aplicación", str(e), parent=self.win)
+            self.info.configure(text=f"Iniciada {name} con variables proxy; pueden ignorarse.")
+        except (OSError, ValueError, RuntimeError) as error:
+            messagebox.showerror("Iniciar aplicación", str(error), parent=self.win)
