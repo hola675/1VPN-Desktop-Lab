@@ -376,11 +376,24 @@ class DesktopApp:
 
     def _update_access_proxy_ui(self):
         enabled = bool(self.access_proxy_enabled.get())
+        locked = self.engine.active
         if hasattr(self, "access_proxy_status"):
             self.access_proxy_status.configure(
-                text="ACTIVO · HTTP CONNECT" if enabled else "DESACTIVADO",
-                fg=ui.SUCCESS if enabled else MUTED,
+                text=(
+                    "EN USO · HTTP CONNECT" if enabled and locked
+                    else "ACTIVO · HTTP CONNECT" if enabled
+                    else "DESACTIVADO"
+                ),
+                fg=ui.ACCENT if enabled and locked else ui.SUCCESS if enabled else MUTED,
             )
+        for key in (
+            "access_host", "access_port", "access_username", "access_password"
+        ):
+            field = self.inputs.get(key)
+            if field is not None:
+                field.configure(state="disabled" if locked or not enabled else "normal")
+        if hasattr(self, "access_proxy_check"):
+            self.access_proxy_check.configure(state="disabled" if locked else "normal")
 
     def _access_proxy_config(self) -> AccessProxy | None:
         if not self.access_proxy_enabled.get():
@@ -583,6 +596,7 @@ class DesktopApp:
                 access_proxy=access_proxy,
             )
             self._active_access_proxy = access_proxy
+            self._update_access_proxy_ui()
             self._premium_proxy_active = bool(browser_premium)
             self._egress_verified = False
             self.session += 1
@@ -595,6 +609,7 @@ class DesktopApp:
             self.address.configure(text="Pendiente de verificar · pulsa VERIFICAR SALIDA")
             if access_proxy is None:
                 self.engine_status.configure(text="WFP nativo · red directa", fg=ui.SUCCESS)
+        self._update_access_proxy_ui()
                 self._log("Conexión a 1VPN: acceso directo desde la red local.")
             else:
                 self.engine_status.configure(
