@@ -291,6 +291,17 @@ class AccountPanel:
             except tk.TclError:
                 pass
 
+    @staticmethod
+    def _copy_pairing_text(window, value: str) -> bool:
+        """Copy exactly one pairing field; never combine port and secret."""
+        try:
+            window.clipboard_clear()
+            window.clipboard_append(value)
+            window.update_idletasks()
+            return True
+        except tk.TclError:
+            return False
+
     def open_browser_bridge(self):
         """Start a user-approved, one-time local transfer from official website.
 
@@ -310,8 +321,8 @@ class AccountPanel:
         popup = tk.Toplevel(self.win)
         self.bridge_window = popup
         popup.title("OneTunnel · Vincular cuenta Premium con navegador")
-        popup.geometry("670x330")
-        popup.minsize(620, 300)
+        popup.geometry("670x365")
+        popup.minsize(620, 340)
         popup.configure(bg=BG)
         popup.protocol("WM_DELETE_WINDOW", self._cancel_browser_bridge)
         panel = tk.Frame(popup, bg=BG, padx=22, pady=15)
@@ -327,21 +338,44 @@ class AccountPanel:
         )
         tk.Label(panel, text=instructions, fg=TEXT, bg=BG, anchor="w",
                  justify="left", font=("Segoe UI", 9)).pack(anchor="w")
-        tk.Label(panel, text=f"Puerto local: {details.port}", fg=ACCENT,
-                 bg=BG, font=("Consolas", 12, "bold")).pack(anchor="w", pady=(10, 2))
-        tk.Label(panel, text="Código temporal: " + details.code, fg=TEXT,
-                 bg=BG, font=("Consolas", 10)).pack(anchor="w", pady=(0, 10))
+        copy_status = tk.Label(panel, text="Copia cada dato por separado; no compartas el código.",
+                               fg=MUTED, bg=BG, font=("Segoe UI", 9), anchor="w")
+        fields = tk.Frame(panel, bg=BG)
+        fields.pack(fill="x", pady=(10, 4))
+        fields.columnconfigure(1, weight=1)
+
+        def copy_field(value: str, field_name: str):
+            copied = self._copy_pairing_text(popup, value)
+            copy_status.configure(
+                text=f"{field_name} copiado al portapapeles." if copied
+                else f"No se pudo copiar el {field_name.lower()}.",
+                fg=ACCENT if copied else WARN,
+            )
+
+        for row_index, (caption, value, button_text) in enumerate((
+            ("Puerto local", str(details.port), "COPIAR PUERTO"),
+            ("Código temporal", details.code, "COPIAR CÓDIGO"),
+        )):
+            tk.Label(fields, text=caption, bg=BG, fg=ACCENT if row_index == 0 else TEXT,
+                     font=("Segoe UI", 10), anchor="w").grid(
+                         row=row_index, column=0, sticky="w", pady=4, padx=(0, 10))
+            entry = tk.Entry(fields, bg=PANEL, fg=TEXT, readonlybackground=PANEL,
+                             font=("Consolas", 10), relief="flat", width=33)
+            entry.insert(0, value)
+            entry.configure(state="readonly")
+            entry.grid(row=row_index, column=1, sticky="ew", pady=4, ipady=5)
+            tk.Button(fields, text=button_text,
+                      command=lambda v=value, name=caption: copy_field(v, name),
+                      bg=ACCENT, fg=BG, relief="flat", padx=8, pady=5).grid(
+                          row=row_index, column=2, sticky="e", padx=(10, 0), pady=4)
+
+        copy_status.pack(fill="x", pady=(2, 8))
         bar = tk.Frame(panel, bg=BG)
         bar.pack(fill="x")
-        def copy_details():
-            popup.clipboard_clear()
-            popup.clipboard_append(f"{details.port} {details.code}")
-        tk.Button(bar, text="COPIAR PUERTO Y CÓDIGO", command=copy_details,
-                  bg=ACCENT, fg=BG, relief="flat", padx=9, pady=6).pack(side="left")
         tk.Button(bar, text="ABRIR CUENTA OFICIAL", command=lambda: webbrowser.open("https://1vpn.org/account/"),
-                  bg=PANEL, fg=TEXT, relief="flat", padx=9, pady=6).pack(side="left", padx=8)
+                  bg=PANEL, fg=TEXT, relief="flat", padx=9, pady=6).pack(side="left")
         tk.Button(bar, text="CANCELAR", command=self._cancel_browser_bridge,
-                  bg=PANEL, fg=WARN, relief="flat", padx=9, pady=6).pack(side="left")
+                  bg=PANEL, fg=WARN, relief="flat", padx=9, pady=6).pack(side="left", padx=8)
         self.status.configure(text="Vinculación Premium esperando consentimiento del navegador.", fg=WARN)
 
     def logout(self):
