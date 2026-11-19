@@ -44,8 +44,19 @@ jobs:
       - name: Compilar motor WFP propio (Windows SDK, sin drivers externos)
         shell: pwsh
         run: |
-          cmake -S native/wfp -B native/wfp/build -G "Visual Studio 17 2022" -A x64
-          if ($LASTEXITCODE -ne 0) { throw "Error configurando WFP nativo" }
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio/Installer/vswhere.exe"
+          if (-not (Test-Path $vswhere)) { throw "No hay instalador de Visual Studio / MSVC" }
+          $vsVersion = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationVersion
+          if (-not $vsVersion) { throw "No se encontró MSVC C++ para Windows" }
+          $major = [int]($vsVersion.Split(".")[0])
+          $generator = switch ($major) {
+            17 { "Visual Studio 17 2022" }
+            18 { "Visual Studio 18 2026" }
+            default { throw "Visual Studio no compatible: $vsVersion" }
+          }
+          Write-Host "Motor WFP: compilando con $generator"
+          cmake -S native/wfp -B native/wfp/build -G $generator -A x64
+          if ($LASTEXITCODE -ne 0) { throw "Error configurando WFP nativo con $generator" }
           cmake --build native/wfp/build --config Release
           if ($LASTEXITCODE -ne 0) { throw "Error compilando WFP nativo" }
           & native/wfp/build/Release/onetunnel-wfp-guard.exe --version
