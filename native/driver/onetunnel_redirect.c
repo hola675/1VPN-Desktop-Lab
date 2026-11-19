@@ -9,11 +9,12 @@
  * if the redirect cannot be applied; unrelated traffic is never seen unless
  * user mode installs a matching filter.
  */
+#include <ntifs.h>
 #include <ntddk.h>
-#include <fwpsk.h>
+#include <ndis.h>
 #include <fwpmk.h>
-#include <ws2def.h>
-#include <ws2ipdef.h>
+#include <fwpsk.h>
+#include <netioddk.h>
 
 #include "../wfp/redirect_contract.h"
 #include "../wfp/redirect_ids.h"
