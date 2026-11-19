@@ -5,11 +5,9 @@ The stable Tkinter v0.6.1 app remains untouched while this frontend matures.
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
 import sys
 import threading
-import webbrowser
 
 from PySide6.QtCore import QObject, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QCloseEvent, QDesktopServices
@@ -1088,8 +1086,16 @@ class OneTunnelQt(QMainWindow):
 
     def check_driver_state(self):
         try:
-            state = self.driver_lifecycle.state()
-            self.driver_state.setText(str(state))
+            state = self.driver_lifecycle.service_state()
+            names = {
+                1: "STOPPED",
+                2: "START_PENDING",
+                3: "STOP_PENDING",
+                4: "RUNNING",
+            }
+            self.driver_state.setText(
+                f"Callout firmado: {names.get(state, f'ESTADO {state}')}"
+            )
         except Exception as error:
             self.driver_state.setText(f"Estado no disponible · {type(error).__name__}")
 
