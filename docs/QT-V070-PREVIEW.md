@@ -106,3 +106,15 @@ Qt no será el frontend principal hasta que se certifiquen:
 - certificación WFP desde Qt;
 - persistencia segura de preferencias NO sensibles;
 - eliminar duplicación de lógica UI mediante un AppController compartido.
+
+
+## Continuación delegada al agente
+
+La continuación ya está desglosada para ejecución autónoma:
+
+- `../AGENTS.md`: contrato de desarrollo y seguridad;
+- `AGENT-NEXT-TASK-V071.md`: tarea inmediata v0.7.1;
+- `ROADMAP-QT-V071-V080.md`: secuencia completa hasta v0.8;
+- `ASSETS-QT-V071.md`: sistema de generación e integración de assets.
+
+La próxima implementación debe empezar por infraestructura de recursos y assets; no debe mezclar rediseño con cambios en el dataplane.
