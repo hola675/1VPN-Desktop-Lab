@@ -12,6 +12,7 @@ DRIVER = ROOT / "native" / "driver" / "onetunnel_redirect.cpp"
 CONTRACT = ROOT / "native" / "wfp" / "redirect_contract.h"
 CONTROL = ROOT / "native" / "wfp" / "wfp_control.cpp"
 INF = ROOT / "native" / "driver" / "OneTunnelRedirect.inx"
+PROJECT = ROOT / "native" / "driver" / "OneTunnelRedirect.vcxproj"
 
 
 class DriverSourceGuardrails(unittest.TestCase):
@@ -21,6 +22,7 @@ class DriverSourceGuardrails(unittest.TestCase):
         cls.contract = CONTRACT.read_text(encoding="utf-8")
         cls.control = CONTROL.read_text(encoding="utf-8")
         cls.inf = INF.read_text(encoding="utf-8")
+        cls.project = PROJECT.read_text(encoding="utf-8")
 
     def test_redirect_context_binary_sizes_match_relay(self):
         self.assertEqual(struct.calcsize("<IHHHH16s"), 28)
@@ -90,6 +92,11 @@ class DriverSourceGuardrails(unittest.TestCase):
             "ProxiFyre",
         ):
             self.assertNotIn(forbidden, self.control)
+
+    def test_driver_targets_windows_desktop_not_universal_api_subset(self):
+        self.assertIn("<DriverTargetPlatform>Desktop</DriverTargetPlatform>", self.project)
+        self.assertNotIn("<DriverTargetPlatform>Universal</DriverTargetPlatform>", self.project)
+        self.assertIn("<TargetVersion>Windows10</TargetVersion>", self.project)
 
     def test_driver_package_is_demand_start_not_boot_start(self):
         self.assertIn("Class       = WFPCALLOUTS", self.inf)
