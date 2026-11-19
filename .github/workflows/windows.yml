@@ -61,6 +61,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Error compilando WFP nativo" }
           & native/wfp/build/Release/onetunnel-wfp-guard.exe --version
           if ($LASTEXITCODE -ne 0) { throw "Motor WFP no responde" }
+          # Dry-run never installs filters, suitable for unprivileged CI.
+          $sampleExe = Join-Path $env:WINDIR "System32/notepad.exe"
+          & native/wfp/build/Release/onetunnel-wfp-guard.exe --dry-run $sampleExe
+          if ($LASTEXITCODE -ne 0) { throw "Prevalidación de exe falló" }
       - name: Crear EXE incluyendo motor WFP propio
         shell: pwsh
         working-directory: desktop_prototype
@@ -71,7 +75,7 @@ jobs:
       - name: Guardar artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: 1VPN-Desktop-Lab-v0.4-dev-win-x64
+          name: OneTunnel-v0.5.0-native-alpha-win-x64
           path: desktop_prototype/dist/1VPN-Desktop-Lab.exe
           if-no-files-found: error
           retention-days: 14
