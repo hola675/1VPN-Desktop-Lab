@@ -22,6 +22,20 @@ jobs:
       - name: Validar sintaxis y módulos
         shell: pwsh
         run: python -m compileall -q desktop_prototype
+      - name: Validar sintaxis PowerShell de build release
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD "desktop_prototype/Compilar-EXE.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | Format-List | Out-String | Write-Host
+            throw "Compilar-EXE.ps1 contiene errores de sintaxis"
+          }
       - name: Suite de pruebas
         shell: pwsh
         working-directory: desktop_prototype
@@ -118,6 +132,9 @@ jobs:
           $catalog = Join-Path $package "OneTunnelRedirect.cat"
           if (-not (Test-Path $catalog)) { throw "Inf2Cat no generó el catálogo" }
           Write-Host "Paquete SIGNABLE generado. El catálogo sigue SIN FIRMAR y NO debe instalarse."
+      - name: Confirmar que Windows RECHAZA el paquete unsigned
+        shell: pwsh
+        run: python .github/scripts/assert_unsigned_driver_rejected.py native/driver/package
       - name: Guardar paquete WFP SIN FIRMAR (solo revisión)
         uses: actions/upload-artifact@v4
         with:
