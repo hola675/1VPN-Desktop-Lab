@@ -1,3 +1,15 @@
+## v0.6.1-network-access-proxy — redes corporativas con proxy (2026-11-19)
+
+- Nuevo salto de acceso HTTP CONNECT antes de 1VPN: OneTunnel -> proxy de red -> servidor 1VPN.
+- Configuración en AVANZADO: activar, host/IP, puerto, usuario y clave opcionales.
+- Preflight único antes de iniciar el motor para evitar múltiples 407 por credenciales incorrectas.
+- Selector/medición de servidores usa la misma ruta a través del proxy de red.
+- Fail-closed: al activar proxy de acceso nunca se intenta salida directa si CONNECT falla.
+- Estado visual indica red directa o proxy de acceso host:puerto.
+- Campos bloqueados mientras la conexión está activa para reflejar configuración real.
+- Credenciales del proxy de red solo en memoria; sin persistencia ni logs.
+- Soporte inicial: sin autenticación o Basic. NTLM/Kerberos/PAC/WPAD quedan pendientes.
+
 ## v0.6-premium-ui-alpha — simple por fuera, completa por dentro (2026-11-19)
 
 - Nuevo sistema visual compartido `ui_theme.py`: tarjetas, botones, badges, tablas, tabs y tokens.
