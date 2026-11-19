@@ -348,13 +348,21 @@ class TrafficControlPanel:
             if capability.relay_present
             else "no incluido en esta compilación"
         )
+        control = (
+            "incluido y self-test PASS"
+            if capability.control_self_test
+            else "incluido, pero self-test FALLÓ"
+            if capability.control_present
+            else "no incluido en esta compilación"
+        )
         proxy = "LISTO" if capability.transparent_proxy_ready else "PENDIENTE"
         messagebox.showinfo(
             "Estado OneTunnel WFP",
             f"Bloqueo nativo WFP: {len(active)} ruta(s) activas.\n"
             f"Relay transparente: {relay}.\n"
+            f"Control plane BFE: {control}.\n"
             f"PROXY transparente: {proxy}.\n"
-            "Callout driver WFP firmado: PENDIENTE.\n\n"
+            "Callout driver WFP firmado/cargado: PENDIENTE.\n\n"
             "El relay no se inicia hasta que exista el callout compatible; "
             "tenerlo empaquetado NO significa que se esté capturando tráfico.\n"
             "Sin ProxiFyre y sin Windows Firewall para nuevos bloqueos.\n"
