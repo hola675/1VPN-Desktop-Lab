@@ -1,4 +1,4 @@
-"""1VPN Desktop Lab v0.4.1a: cuenta 1VPN separada de credenciales del proxy."""
+"""OneTunnel v0.5.3: Premium + WFP nativo + lifecycle de driver firmado."""
 from __future__ import annotations
 
 import os
