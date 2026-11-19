@@ -402,6 +402,16 @@ class SignedDriverLifecycle:
         service.start()
         return DriverInstallResult(True, True, False)
 
+    def service_state(self) -> int:
+        """Read current SCM state; raises if package/service is not installed."""
+        return self.service_factory().state()
+
+    def service_running(self) -> bool:
+        try:
+            return self.service_state() == SERVICE_RUNNING
+        except DriverLifecycleError:
+            return False
+
     def start(self) -> None:
         if not self.admin_check():
             raise PermissionError("Arrancar el motor WFP requiere administrador")
