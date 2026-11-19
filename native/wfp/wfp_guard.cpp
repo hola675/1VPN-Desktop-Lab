@@ -3,8 +3,6 @@
 // Upon process death, the dynamic session automatically removes its filters.
 // PROXY redirection requires a separate signed WFP callout driver — not here.
 
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
 #include <windows.h>
 #include <fwpmu.h>
 #include <rpc.h>
