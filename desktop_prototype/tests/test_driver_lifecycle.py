@@ -38,8 +38,11 @@ class DriverPackageVerificationTests(unittest.TestCase):
 
     def test_verified_layout_accepts_only_expected_catalog(self):
         def fake_native(inf):
-            self.assertEqual(inf, self.root / "OneTunnelRedirect.inf")
-            return "Microsoft Test Signer", self.root / "OneTunnelRedirect.cat"
+            self.assertEqual(inf, (self.root / "OneTunnelRedirect.inf").resolve())
+            return (
+                "Microsoft Test Signer",
+                (self.root / "OneTunnelRedirect.cat").resolve(),
+            )
 
         result = verify_package(self.root, native_verifier=fake_native)
         self.assertTrue(result.trusted)
