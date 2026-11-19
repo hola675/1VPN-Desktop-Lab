@@ -65,7 +65,7 @@ class DesktopApp:
         self._label(shell, "DESKTOP LAB  /  v0.4.2 beta  /  PREMIUM + HTTP + SOCKS5 + APPS", ACCENT, 11, True).pack(anchor="w")
         self._label(shell, "Proxy y políticas de tráfico para Windows", TEXT, 23, True).pack(anchor="w", pady=(9, 4))
         self._label(
-            shell, "Selección Free automática con preferencia por Singapur. No modifica Wintun ni rutas.",
+            shell, "Selección de servidores autorizados Free/Premium. No modifica Wintun ni rutas.",
             MUTED, 10,
         ).pack(anchor="w", pady=(0, 17))
 
@@ -140,8 +140,8 @@ class DesktopApp:
         self.server_status.pack(anchor="w", pady=(5, 1))
 
         self._label(shell, "RUTAS LOCALES (NO CAMBIAN LA RED DE WINDOWS)", ACCENT, 10, True).pack(anchor="w", pady=(16, 5))
-        self._label(shell, "HTTP CONNECT y SOCKS5 TCP activos en el mismo proceso; sin driver de captura.", TEXT, 10).pack(anchor="w")
-        self._label(shell, "Usa el panel de aplicaciones para gestionar bloqueos salientes y políticas.", MUTED, 10).pack(anchor="w", pady=(4, 4))
+        self._label(shell, "HTTP CONNECT y SOCKS5 TCP integrados. La captura por EXE requiere ProxiFyre externo.", TEXT, 10).pack(anchor="w")
+        self._label(shell, "En APLICACIONES / FIREWALL selecciona .exe en ejecución: PROXY, DIRECTO o BLOQUEAR.", MUTED, 10).pack(anchor="w", pady=(4, 4))
 
         self._label(shell, "REGISTRO LOCAL (SIN CREDENCIALES NI URLS DE NAVEGACIÓN)", MUTED, 9, True).pack(anchor="w", pady=(14, 5))
         self.logbox = tk.Text(shell, bg="#0a111d", fg=MUTED, insertbackground=TEXT,
