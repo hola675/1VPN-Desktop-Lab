@@ -1,3 +1,13 @@
+## v0.5.5-native-certification-alpha — prueba transparente NO_PROXY (2026-11-19)
+
+- Nuevo `onetunnel-egress-probe.exe` C++ propio: HTTPS a api.ipify.org con WinHTTP `WINHTTP_ACCESS_TYPE_NO_PROXY`.
+- Botón **CERTIFICAR PROXY (LAB)**: exige IP Premium ya verificada, driver firmado RUNNING y ninguna sesión PROXY existente.
+- La certificación crea una sesión WFP dinámica solo para el probe, compara IP observada vs Premium y retira filtros siempre al finalizar.
+- No instala/inicia el driver automáticamente y no interrumpe sesiones PROXY activas.
+- CI compila/self-test del probe y lo empaqueta dentro del EXE.
+- Tests cubren éxito, mismatch de IP, fallo de probe, ausencia de driver, sesión existente, inputs inválidos y limpieza.
+- PASS certifica solo TCP HTTPS del probe; UDP/DNS/QUIC/IPv6/WebRTC/kill switch siguen fuera del alcance.
+
 ## v0.5.4-release-handoff-alpha — paquete firmado embebible (2026-11-19)
 
 - Compilar-EXE.ps1 acepta ONETUNNEL_SIGNED_DRIVER_DIR / parámetro SignedDriverDirectory.
