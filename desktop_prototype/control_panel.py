@@ -9,6 +9,10 @@ from tkinter import filedialog, messagebox, ttk
 
 from firewall_rules import FirewallManager, rule_name
 from traffic_policy import AppPolicy, PolicyStore, normalize_executable
+from proxifyre_adapter import (
+    DRAFT_FILE_NAME, build_proxifyre_draft, describe_proxifyre_draft,
+    save_proxifyre_draft,
+)
 
 BG = "#0d1524"
 TEXT = "#ecf4ff"
@@ -19,7 +23,7 @@ MODE_LABELS = {
     "MANUAL_PROXY": "PROXY MANUAL (app compatible)",
     "DIRECT": "DIRECTO (no se intercepta)",
     "BLOCK": "BLOQUEAR (firewall Windows)",
-    "TRANSPARENT": "TRANSPARENTE (pendiente driver)",
+    "TRANSPARENT": "PROXIFYRE TCP (driver externo)",
 }
 
 
@@ -48,7 +52,7 @@ class TrafficControlPanel:
         body = tk.Frame(self.win, bg=BG, padx=22, pady=18)
         body.pack(fill="both", expand=True)
         self._label(body, "APLICACIONES Y FIREWALL / v0.4", ACCENT, 15).pack(anchor="w")
-        self._label(body, "Sin controlador: PROXY solo manual o por variables de entorno. BLOQUEAR requiere administrador.",
+        self._label(body, "ProxiFyre: captura externa opcional. Este panel solo prepara borradores; BLOQUEAR requiere administrador.",
                     "#ffcc87").pack(anchor="w", pady=(5, 14))
         row = tk.Frame(body, bg=BG)
         row.pack(fill="x")
@@ -66,6 +70,10 @@ class TrafficControlPanel:
         self._button(bar, "Retirar bloqueo", self.unblock).pack(side="left", padx=7)
         self._button(bar, "Eliminar política", self.delete_rule).pack(side="left", padx=7)
         self._button(bar, "Iniciar con variables proxy", self.launch_with_proxy).pack(side="left", padx=7)
+        external = tk.Frame(body, bg=BG)
+        external.pack(fill="x", pady=(0, 10))
+        self._button(external, "PREPARAR PERFIL PROXIFYRE (TCP)", self.prepare_proxifyre).pack(side="left")
+        self._button(external, "DIAGNÓSTICO DRIVER/SERVICIO", self.check_proxifyre).pack(side="left", padx=8)
         columns = ("path", "mode", "firewall")
         self.tree = ttk.Treeview(body, columns=columns, show="headings", height=13, selectmode="browse")
         for key, label, width in (("path", "Ejecutable", 430), ("mode", "Política", 245),
@@ -155,6 +163,90 @@ class TrafficControlPanel:
             self.refresh()
         except Exception as e:
             messagebox.showerror("Eliminar política", str(e), parent=self.win)
+
+    def prepare_proxifyre(self):
+        """Create a review-only config, without installing or starting drivers."""
+        try:
+            endpoints = self.endpoint_getter()
+            if endpoints is None:
+                raise RuntimeError(
+                    "Primero inicia OneTunnel y verifica la salida HTTPS. "
+                    "El borrador necesita el puerto SOCKS5 local activo."
+                )
+            profile = build_proxifyre_draft(
+                self.store.load(), endpoints.socks5_port,
+                self.firewall.managed().values(),
+            )
+            preview = describe_proxifyre_draft(profile)
+            if not messagebox.askyesno(
+                "ProxiFyre — SOLO BORRADOR",
+                preview + "\n\n¿Guardar este borrador sin modificar el sistema?",
+                parent=self.win,
+            ):
+                return
+            target = filedialog.asksaveasfilename(
+                parent=self.win,
+                title="Guardar borrador ProxiFyre (NO app-config.json)",
+                initialfile=DRAFT_FILE_NAME,
+                defaultextension=".json",
+                filetypes=[("Archivo JSON", "*.json")],
+            )
+            if not target:
+                return
+            saved = save_proxifyre_draft(target, profile)
+            self.info.configure(
+                text="Borrador creado. No se modificó el firewall, el servicio ni la red. "
+                     "Revisa DNS/UDP antes de aplicar manualmente en ProxiFyre."
+            )
+            messagebox.showinfo(
+                "Borrador exportado",
+                f"Archivo: {saved}\n\n"
+                "NO se ha activado la redirección. En ProxiFyre oficial "
+                "revisa aplicaciones, SOCKS5 TCP/IPv4 y exclusiones. "
+                "DNS permanece Directo; UDP no está protegido. "
+                "No uses este perfil como kill switch.",
+                parent=self.win,
+            )
+        except (OSError, ValueError, RuntimeError) as error:
+            messagebox.showerror(
+                "ProxiFyre — preparación",
+                str(error), parent=self.win,
+            )
+
+    @staticmethod
+    def _query_service(service: str) -> str:
+        """Read-only sc.exe query; never install, modify or start a service."""
+        if os.name != "nt":
+            return "Solo disponible en Windows"
+        try:
+            result = subprocess.run(
+                ["sc.exe", "query", service],
+                capture_output=True, text=True, timeout=6, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return "No se pudo consultar"
+        if result.returncode:
+            return "No está registrado o no es accesible"
+        output = result.stdout.upper()
+        if "RUNNING" in output:
+            return "RUNNING (en ejecución)"
+        if "STOPPED" in output:
+            return "STOPPED (detenido)"
+        return "Registrado (estado indeterminado)"
+
+    def check_proxifyre(self):
+        """Read-only check for the external service and WinpkFilter driver."""
+        service = self._query_service("ProxiFyreService")
+        driver = self._query_service("NDISRD")
+        messagebox.showinfo(
+            "ProxiFyre — estado del equipo (solo lectura)",
+            f"ProxiFyreService: {service}\nNDISRD: {driver}\n\n"
+            "Este diagnóstico NO instala controladores ni ejecuta reglas. "
+            "Un servicio RUNNING tampoco garantiza redirección ni ausencia de fugas. "
+            "Antes de aplicar la configuración, comprueba salida TCP real "
+            "por el SOCKS5 y el comportamiento de DNS, UDP y IPv6.",
+            parent=self.win,
+        )
 
     def launch_with_proxy(self):
         try:
