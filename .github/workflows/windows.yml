@@ -69,6 +69,31 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Relay transparente no responde" }
           & native/wfp/build/Release/onetunnel-transparent-relay.exe --self-test
           if ($LASTEXITCODE -ne 0) { throw "Falló self-test del relay transparente" }
+      - name: Compilar callout WFP kernel (UNSIGNED, CI solamente)
+        shell: pwsh
+        run: |
+          $nuget = (Get-Command nuget.exe -ErrorAction SilentlyContinue).Source
+          if (-not $nuget) { throw "nuget.exe no está disponible en el runner" }
+          & $nuget restore native/driver/packages.config -PackagesDirectory native/driver/packages -NonInteractive
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo restaurar WDK NuGet" }
+
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio/Installer/vswhere.exe"
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) { throw "No se encontró Visual Studio/MSVC" }
+          $msbuild = Join-Path $vsPath "MSBuild/Current/Bin/MSBuild.exe"
+          & $msbuild native/driver/OneTunnelRedirect.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:SignMode=Off /v:minimal
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo compilar el callout WFP" }
+
+          $driver = "native/driver/bin/Release/onetunnel-wfp-redirect.sys"
+          if (-not (Test-Path $driver)) { throw "No se generó el .sys del callout" }
+          Write-Host "Callout WFP compilado sin instalar ni cargar: $driver"
+      - name: Guardar callout WFP SIN FIRMAR (solo laboratorio)
+        uses: actions/upload-artifact@v4
+        with:
+          name: OneTunnel-WFP-Callout-UNSIGNED-CI
+          path: native/driver/bin/Release/onetunnel-wfp-redirect.sys
+          if-no-files-found: error
+          retention-days: 7
       - name: Crear EXE incluyendo componentes WFP propios
         shell: pwsh
         working-directory: desktop_prototype
