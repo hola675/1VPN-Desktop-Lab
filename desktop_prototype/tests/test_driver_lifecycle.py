@@ -53,6 +53,18 @@ class DriverPackageVerificationTests(unittest.TestCase):
         with self.assertRaisesRegex(DriverLifecycleError, "no confía"):
             verify_package(self.root, native_verifier=reject)
 
+    def test_catalog_with_right_name_but_wrong_directory_is_rejected(self):
+        other = self.root / "other"
+        other.mkdir()
+        wrong = other / "OneTunnelRedirect.cat"
+        wrong.write_bytes(b"OTHER")
+
+        with self.assertRaisesRegex(DriverLifecycleError, "fuera del paquete"):
+            verify_package(
+                self.root,
+                native_verifier=lambda _inf: ("Signer", wrong),
+            )
+
     def test_wrong_catalog_identity_is_rejected(self):
         def wrong(_inf):
             return "Signer", self.root / "Other.cat"
@@ -137,6 +149,36 @@ class DriverLifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(DriverLifecycleError, "unsigned"):
             lifecycle.install("ignored")
         self.assertEqual(self.events, ["verify"])
+
+    def test_start_failure_rolls_back_installed_package(self):
+        lifecycle = self.lifecycle()
+
+        class FailingService:
+            def start(_self):
+                self.events.append("start")
+                raise DriverLifecycleError("start failed")
+
+        lifecycle.service_factory = lambda: FailingService()
+        with self.assertRaisesRegex(DriverLifecycleError, "revirtió"):
+            lifecycle.install("ignored")
+        self.assertEqual(
+            self.events,
+            ["verify", ("install", self.inf), "start", ("uninstall", self.inf)],
+        )
+
+    def test_start_and_rollback_failure_reports_half_configured_state(self):
+        lifecycle = self.lifecycle()
+
+        class FailingService:
+            def start(_self):
+                raise DriverLifecycleError("start failed")
+
+        lifecycle.service_factory = lambda: FailingService()
+        lifecycle.uninstaller = lambda _inf: (_ for _ in ()).throw(
+            DriverLifecycleError("rollback failed")
+        )
+        with self.assertRaisesRegex(DriverLifecycleError, "reversión.*falló"):
+            lifecycle.install("ignored")
 
     def test_reboot_required_does_not_start_driver_immediately(self):
         lifecycle = self.lifecycle(reboot=True)
