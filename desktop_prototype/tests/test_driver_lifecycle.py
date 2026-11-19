@@ -9,6 +9,7 @@ from driver_lifecycle import (
     DriverLifecycleError,
     DriverPackageVerification,
     SignedDriverLifecycle,
+    bundled_driver_package_candidate,
     verify_package,
 )
 
@@ -107,6 +108,32 @@ class DriverPackageVerificationTests(unittest.TestCase):
                     "Signer", self.root / "OneTunnelRedirect.cat"
                 ),
             )
+
+
+class BundledDriverPackageTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def test_incomplete_embedded_package_is_not_selected(self):
+        from unittest.mock import patch
+
+        (self.root / "OneTunnelRedirect.inf").write_text("x", encoding="utf-8")
+        with patch("driver_lifecycle.bundled_driver_package_dir", return_value=self.root):
+            self.assertIsNone(bundled_driver_package_candidate())
+
+    def test_complete_embedded_package_is_selected_but_not_auto_verified(self):
+        from unittest.mock import patch
+
+        for name in (
+            "OneTunnelRedirect.inf",
+            "OneTunnelRedirect.cat",
+            "onetunnel-wfp-redirect.sys",
+        ):
+            (self.root / name).write_bytes(b"x")
+        with patch("driver_lifecycle.bundled_driver_package_dir", return_value=self.root):
+            self.assertEqual(bundled_driver_package_candidate(), self.root)
 
 
 class DriverLifecycleTests(unittest.TestCase):
