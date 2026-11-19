@@ -14,3 +14,9 @@ desktop_prototype/*.spec
 venv/
 __pycache__/
 *.pyc
+
+# Driver signing/release material must remain outside Git
+native/driver/signed-package/
+*.pfx
+*.p12
+*.pvk

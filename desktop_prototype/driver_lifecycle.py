@@ -103,6 +103,19 @@ def bundled_driver_package_dir() -> Path:
     return root / "driver_package"
 
 
+def bundled_driver_package_candidate() -> Path | None:
+    """Return an embedded package only when all three exact members exist.
+
+    This does NOT trust the package. Signature verification still happens
+    explicitly before install/start actions.
+    """
+    root = bundled_driver_package_dir()
+    expected = (INF_NAME, CAT_NAME, SYS_NAME)
+    if root.is_dir() and all((root / name).is_file() for name in expected):
+        return root
+    return None
+
+
 def _read_inf_strict(inf: Path) -> str:
     # INF packages are conventionally ANSI/UTF-16; ours is ASCII-only by policy.
     raw = inf.read_bytes()

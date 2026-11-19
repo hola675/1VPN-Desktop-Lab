@@ -1,3 +1,7 @@
+param(
+    [string]$SignedDriverDirectory = $env:ONETUNNEL_SIGNED_DRIVER_DIR
+)
+
 # OneTunnel Desktop Lab: build UI + first-party WFP guard.
 # Needs Python 3.13, CMake, VS 2022 Build Tools / Windows SDK.
 # The build DOES NOT install or activate any WFP filters.
@@ -35,9 +39,52 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Falló el self-test del relay transparente' }
     & $Control --self-test
     if ($LASTEXITCODE -ne 0) { throw 'Falló el self-test del control plane WFP' }
-    py -3.13 -m PyInstaller --noconfirm --clean --windowed --onefile --name 1VPN-Desktop-Lab --add-binary "$Helper;." --add-binary "$Relay;." --add-binary "$Control;." app.py
+    $PyInstallerArgs = @(
+        '-m', 'PyInstaller',
+        '--noconfirm', '--clean', '--windowed', '--onefile',
+        '--name', '1VPN-Desktop-Lab',
+        '--add-binary', "$Helper;.",
+        '--add-binary', "$Relay;.",
+        '--add-binary', "$Control;."
+    )
+
+    if ($SignedDriverDirectory) {
+        $SignedDriverDirectory = (Resolve-Path -LiteralPath $SignedDriverDirectory).Path
+        Write-Host "Verificando paquete WFP firmado: $SignedDriverDirectory" -ForegroundColor Cyan
+        & py -3.13 -c "from driver_lifecycle import verify_package; import sys; v=verify_package(sys.argv[1]); print('SIGNED_DRIVER_OK:', v.signer)" $SignedDriverDirectory
+        if ($LASTEXITCODE -ne 0) {
+            throw 'El paquete WFP no tiene una firma/catálogo confiable para Windows'
+        }
+
+        $Inf = Join-Path $SignedDriverDirectory 'OneTunnelRedirect.inf'
+        $Cat = Join-Path $SignedDriverDirectory 'OneTunnelRedirect.cat'
+        $Sys = Join-Path $SignedDriverDirectory 'onetunnel-wfp-redirect.sys'
+        foreach ($Required in @($Inf, $Cat, $Sys)) {
+            if (-not (Test-Path -LiteralPath $Required -PathType Leaf)) {
+                throw "Falta archivo firmado obligatorio: $Required"
+            }
+        }
+
+        $PyInstallerArgs += @(
+            '--add-data', "$Inf;driver_package",
+            '--add-data', "$Cat;driver_package",
+            '--add-binary', "$Sys;driver_package"
+        )
+        Write-Host 'Paquete WFP FIRMADO aceptado: se integrará dentro de OneTunnel.' -ForegroundColor Green
+    }
+    else {
+        Write-Host 'Build sin paquete kernel: PROXY WFP seguirá requiriendo paquete firmado externo.' -ForegroundColor Yellow
+    }
+
+    $PyInstallerArgs += 'app.py'
+    & py -3.13 @PyInstallerArgs
     if ($LASTEXITCODE -ne 0) { throw 'Error empaquetando el EXE' }
-    Write-Host 'EXE con WFP nativo en desktop_prototype/dist/1VPN-Desktop-Lab.exe' -ForegroundColor Green
+
+    $Exe = Join-Path $PSScriptRoot 'dist\1VPN-Desktop-Lab.exe'
+    Write-Host "EXE creado: $Exe" -ForegroundColor Green
+    if ($SignedDriverDirectory) {
+        Write-Host 'Release incluye paquete WFP firmado y será detectado automáticamente por la UI.' -ForegroundColor Green
+    }
 } finally {
     Pop-Location
 }

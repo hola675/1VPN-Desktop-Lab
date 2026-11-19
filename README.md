@@ -1,3 +1,9 @@
+## v0.5.4 — driver firmado embebible en release (alpha)
+
+La build de release admite ahora `ONETUNNEL_SIGNED_DRIVER_DIR`. Solo si Windows verifica mediante `SetupVerifyInfFileW` un paquete Microsoft-signed completo, PyInstaller integra INF/CAT/SYS dentro del EXE y la UI lo detecta automáticamente. Sin esa variable, la build de desarrollo NO incorpora ningún paquete kernel.
+
+El paquete unsigned de CI nunca se usa como fallback. Certificados privados y carpetas de staging firmado están excluidos de Git. Consulta [handoff de firma](docs/DRIVER-SIGNING-HANDOFF.md).
+
 ## v0.5.3 — signed driver lifecycle + native PROXY controls (alpha)
 
 OneTunnel ya integra el ciclo de vida del callout WFP: verificar paquete/catálogo firmado, instalar primitive driver en Driver Store, iniciar/detener el servicio demand-start y activar una sesión PROXY nativa por las políticas de nombres EXE. **El paquete kernel de CI sigue SIN FIRMAR y será rechazado por la aplicación**; por tanto, PROXY transparente todavía no es instalable en un Windows de producción hasta completar firma de kernel y prueba de laboratorio.

@@ -12,7 +12,9 @@ from firewall_rules import FirewallManager  # Exclusivamente retirada de bloqueo
 from native_wfp import NativeWfpGuard, FORBIDDEN_APP_NAMES
 from native_redirect import check_redirect_capability
 from native_proxy import NativeProxySession
-from driver_lifecycle import DriverLifecycleError, SignedDriverLifecycle
+from driver_lifecycle import (
+    DriverLifecycleError, SignedDriverLifecycle, bundled_driver_package_candidate,
+)
 from traffic_policy import AppPolicy, PolicyStore, app_name_from_path, normalize_app_name, executable_key
 from running_apps import list_running_apps
 
@@ -41,7 +43,7 @@ class TrafficControlPanel:
         self.guard = native_guard or NativeWfpGuard()
         self.native_proxy = native_proxy or NativeProxySession()
         self.driver_lifecycle = driver_lifecycle or SignedDriverLifecycle()
-        self._driver_package_dir: Path | None = None
+        self._driver_package_dir: Path | None = bundled_driver_package_candidate()
         self._driver_started_for_proxy = False
         # Read legacy managed Windows Firewall rules only to remove them on request.
         self.legacy_firewall = FirewallManager()
@@ -52,6 +54,10 @@ class TrafficControlPanel:
         self.win.minsize(1000, 700)
         self.win.configure(bg=BG)
         self._layout()
+        if self._driver_package_dir is not None:
+            self.info.configure(
+                text="Paquete WFP integrado detectado. Verifica su firma antes de instalar."
+            )
         self.refresh()
         self.refresh_running()
         self.win.after(10000, self._periodic_refresh_running)
