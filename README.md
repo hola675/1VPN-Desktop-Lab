@@ -1,3 +1,9 @@
+## v0.7 Qt Preview — nueva interfaz PySide6
+
+La migración profesional a Qt comenzó **en paralelo** a la UI estable Tkinter. El nuevo `qt_app.py` reutiliza NetworkEngine, Premium, proxy corporativo, políticas por EXE y motores WFP sin depender del frontend anterior. GitHub Actions genera un artefacto independiente `OneTunnel-v0.7-qt-preview-win-x64`, por lo que la versión estable no se sustituye todavía.
+
+Guía: [Qt Preview v0.7](docs/QT-V070-PREVIEW.md).
+
 ## v0.6.1 — conexión a 1VPN desde redes con proxy
 
 En **AVANZADO** puedes activar **Usar proxy de la red para conectar a 1VPN** y configurar host/IP, puerto y autenticación Basic opcional. OneTunnel realiza primero HTTP CONNECT hacia ese proxy y después establece TLS con el servidor 1VPN. Si el proxy de acceso falla, **no hay fallback directo**. El selector de servidores también mide a través de ese mismo proxy y la contraseña permanece solo en memoria.
