@@ -638,6 +638,10 @@ class DesktopApp:
             else:
                 self.server_status.configure(text="Servidor manual · no hay selección automática", fg=MUTED)
         except (OSError, ValueError, RuntimeError) as error:
+            self._active_access_proxy = None
+            self._update_access_proxy_ui()
+            self.status.configure(text="Desconectado · conexión no iniciada", fg=ui.DANGER)
+            self.engine_status.configure(text="WFP nativo · red directa", fg=ui.SUCCESS)
             self._log(f"No se pudo abrir el servicio local: {type(error).__name__}")
             messagebox.showerror("No se pudo iniciar", str(error))
 
