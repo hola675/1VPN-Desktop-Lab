@@ -1,4 +1,4 @@
-"""Panel integrado de aplicaciones y reglas firewall (sin captura transparente)."""
+"""Panel de políticas por EXE: bloqueo WFP propio; redirección nativa pendiente."""
 from __future__ import annotations
 
 import hashlib
@@ -8,13 +8,10 @@ import subprocess
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from firewall_rules import FirewallManager, rule_name
+from firewall_rules import FirewallManager  # Exclusivamente retirada de bloqueos heredados.
+from native_wfp import NativeWfpGuard, FORBIDDEN_APP_NAMES
 from traffic_policy import AppPolicy, PolicyStore, app_name_from_path, normalize_app_name, executable_key
 from running_apps import list_running_apps
-from proxifyre_adapter import (
-    DRAFT_FILE_NAME, DENIED_TARGETS, build_proxifyre_draft, describe_proxifyre_draft,
-    save_proxifyre_draft,
-)
 
 BG = "#0d1524"
 TEXT = "#ecf4ff"
@@ -23,22 +20,24 @@ ACCENT = "#4bc7e6"
 
 MODE_LABELS = {
     "MANUAL_PROXY": "PROXY MANUAL (app compatible)",
-    "DIRECT": "DIRECTO (excluir de ProxiFyre)",
-    "BLOCK": "BLOQUEAR (firewall Windows)",
-    "TRANSPARENT": "PROXY (ProxiFyre TCP/IPv4)",
+    "DIRECT": "DIRECTO (red normal de Windows)",
+    "BLOCK": "BLOQUEAR (WFP nativo)",
+    "TRANSPARENT": "PROXY (motor WFP pendiente)",
 }
 
 
 class TrafficControlPanel:
-    def __init__(self, parent: tk.Tk, endpoint_getter, verified_getter=None):
+    def __init__(self, parent: tk.Tk, endpoint_getter, verified_getter=None, native_guard=None):
         self.parent = parent
         self.endpoint_getter = endpoint_getter
         self.verified_getter = verified_getter or (lambda: False)
         self.store = PolicyStore()
-        self.firewall = FirewallManager()
+        self.guard = native_guard or NativeWfpGuard()
+        # Read legacy managed Windows Firewall rules only to remove them on request.
+        self.legacy_firewall = FirewallManager()
         self._browsed_paths: dict[str, set[str]] = {}
         self.win = tk.Toplevel(parent)
-        self.win.title("1VPN Desktop Lab — Aplicaciones y firewall")
+        self.win.title("OneTunnel — Motor WFP nativo por aplicación")
         self.win.geometry("1120x780")
         self.win.minsize(1000, 700)
         self.win.configure(bg=BG)
@@ -59,7 +58,7 @@ class TrafficControlPanel:
         body = tk.Frame(self.win, bg=BG, padx=22, pady=18)
         body.pack(fill="both", expand=True)
         self._label(body, "APLICACIONES EN EJECUCIÓN / REGLAS POR NOMBRE .EXE", ACCENT, 15).pack(anchor="w")
-        self._label(body, "PROXY: ProxiFyre + Windows Packet Filter externos · DIRECTO: excluido · BLOQUEAR: Firewall (admin)",
+        self._label(body, "DIRECTO: disponible · BLOQUEAR: WFP integrado (admin) · PROXY: requiere callout firmado (pendiente)",
                     "#ffcc87").pack(anchor="w", pady=(5, 14))
         row = tk.Frame(body, bg=BG)
         row.pack(fill="x")
@@ -74,14 +73,14 @@ class TrafficControlPanel:
         bar = tk.Frame(body, bg=BG)
         bar.pack(fill="x", pady=(12, 10))
         self._button(bar, "Guardar política", self.save_rule).pack(side="left")
-        self._button(bar, "Aplicar BLOQUEO", self.block).pack(side="left", padx=7)
-        self._button(bar, "Retirar bloqueo", self.unblock).pack(side="left", padx=7)
+        self._button(bar, "APLICAR BLOQUEO WFP", self.block).pack(side="left", padx=7)
+        self._button(bar, "RETIRAR BLOQUEO WFP", self.unblock).pack(side="left", padx=7)
         self._button(bar, "Eliminar política", self.delete_rule).pack(side="left", padx=7)
         self._button(bar, "Iniciar con variables proxy", self.launch_with_proxy).pack(side="left", padx=7)
         external = tk.Frame(body, bg=BG)
         external.pack(fill="x", pady=(0, 10))
-        self._button(external, "PREPARAR PERFIL PROXIFYRE (TCP)", self.prepare_proxifyre).pack(side="left")
-        self._button(external, "DIAGNÓSTICO DRIVER/SERVICIO", self.check_proxifyre).pack(side="left", padx=8)
+        self._button(external, "ESTADO DEL MOTOR NATIVO", self.check_native_wfp).pack(side="left")
+        self._button(external, "RETIRAR REGLAS HEREDADAS", self.cleanup_legacy_firewall).pack(side="left", padx=8)
         self._label(body, "PROCESOS EN EJECUCIÓN — selecciona un .exe para elegir PROXY / DIRECTO / BLOQUEAR",
                     ACCENT, 10).pack(anchor="w", pady=(4, 3))
         self._button(body, "Actualizar aplicaciones en ejecución", self.refresh_running).pack(anchor="w", pady=(0, 6))
@@ -110,7 +109,7 @@ class TrafficControlPanel:
             self.tree.column(key, width=width, anchor="w")
         self.tree.pack(fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", self.select_rule)
-        self.info = self._label(body, "Nombre como chrome.exe (sin ruta). PROXY: ProxiFyre; BLOQUEAR: firewall por rutas detectadas.", "#a9bdd9")
+        self.info = self._label(body, "El bloqueo WFP dura mientras OneTunnel está abierto. PROXY transparente todavía NO funciona.", "#a9bdd9")
         self.info.pack(anchor="w", pady=10)
 
     def _choose_name(self, name: str):
@@ -134,7 +133,7 @@ class TrafficControlPanel:
     def _managed_paths(self, app_name: str) -> list[str]:
         name = normalize_app_name(app_name)
         return sorted(
-            {p for p in self.firewall.managed().values()
+            {p for p in self.guard.managed().values()
              if app_name_from_path(p) == name},
             key=str.casefold,
         )
@@ -228,7 +227,7 @@ class TrafficControlPanel:
         try:
             name = self._selected()
             mode = self._mode()
-            if mode in {"TRANSPARENT", "BLOCK"} and name in DENIED_TARGETS:
+            if mode in {"TRANSPARENT", "BLOCK"} and name in FORBIDDEN_APP_NAMES:
                 raise ValueError(
                     "No se puede capturar ni bloquear el motor VPN "
                     "o un proceso esencial de Windows"
@@ -242,9 +241,9 @@ class TrafficControlPanel:
             if mode == "BLOCK":
                 state = "BLOQUEAR guardado; pulsa Aplicar BLOQUEO para rutas actuales."
             elif mode == "TRANSPARENT":
-                state = "PROXY guardado por nombre; aplica el borrador en ProxiFyre."
+                state = "PROXY guardado como preferencia; NO intercepta tráfico hasta desarrollar el callout WFP firmado."
             elif mode == "DIRECT":
-                state = "DIRECTO guardado por nombre; actualiza ProxiFyre."
+                state = "DIRECTO guardado por nombre; usa la red normal del sistema."
             else:
                 state = "Solo apps compatibles con variables de entorno pueden usar proxy manual."
             self.info.configure(text=state)
@@ -258,7 +257,7 @@ class TrafficControlPanel:
         for app in list_running_apps():
             if app.name == name:
                 paths.update(app.paths)
-        # Firewall's Windows native program filter requires concrete paths.
+        # WFP's ALE_APP_ID also uses internal absolute paths, never UI paths.
         return sorted((p for p in paths if Path(p).is_file()), key=str.casefold)
 
     def block(self):
@@ -275,9 +274,9 @@ class TrafficControlPanel:
             prompt = (
                 f"Bloquear conexiones salientes de {name} en {len(paths)} "
                 "ruta(s) detectada(s).\n\n"
-                "Windows Firewall necesita rutas internas: cualquier copia "
+                "WFP necesita identificadores internos de cada ruta: cualquier copia "
                 "NUEVA en otra carpeta no quedará bloqueada automáticamente.\n\n"
-                "¿Aplicar esas reglas con permisos de administrador?"
+                "¿Activar filtros WFP temporales con permisos de administrador?"
             )
             if not messagebox.askyesno("Confirmar bloqueo por aplicación",
                                        prompt, parent=self.win):
@@ -286,7 +285,7 @@ class TrafficControlPanel:
             created: list[str] = []
             try:
                 for exe in paths:
-                    rule_id = self.firewall.block(exe)
+                    rule_id = self.guard.block(exe)
                     if rule_id not in existing:
                         created.append(exe)
                 self.store.upsert(AppPolicy(name, "BLOCK"))
@@ -294,14 +293,15 @@ class TrafficControlPanel:
                 # Attempt to roll back only newly created own rules.
                 for exe in reversed(created):
                     try:
-                        self.firewall.unblock(exe)
+                        self.guard.unblock(exe)
                     except Exception:
                         pass
                 raise
             self.refresh()
             self.info.configure(
                 text=f"BLOQUEAR aplicado a {len(paths)} ruta(s) de {name}; "
-                     "las copias futuras requieren actualizar el bloqueo."
+                     "las copias futuras requieren actualizar el bloqueo. "
+                     "Los filtros se retiran al cerrar OneTunnel."
             )
         except (OSError, ValueError, RuntimeError, PermissionError) as error:
             messagebox.showerror("Firewall", str(error), parent=self.win)
@@ -315,13 +315,13 @@ class TrafficControlPanel:
                 return
             if not messagebox.askyesno(
                 "Retirar bloqueos",
-                f"¿Retirar {len(paths)} regla(s) de firewall administradas "
+                f"¿Retirar {len(paths)} filtro(s) WFP propios temporales "
                 f"para {name}?\nEsto no afecta reglas de otros productos.",
                 parent=self.win,
             ):
                 return
             for exe in paths:
-                self.firewall.unblock(exe)
+                self.guard.unblock(exe)
             # Do not leave a policy displayed as BLOCK when its rules were removed.
             self.store.upsert(AppPolicy(name, "DIRECT"))
             self.refresh()
@@ -334,7 +334,7 @@ class TrafficControlPanel:
             name = self._selected()
             if self._managed_paths(name):
                 raise RuntimeError(
-                    "Retira primero todas las reglas de firewall de este nombre EXE"
+                    "Retira primero los filtros WFP activos de este nombre EXE"
                 )
             self.store.delete(name)
             self.refresh()
@@ -342,91 +342,41 @@ class TrafficControlPanel:
         except (OSError, ValueError, RuntimeError) as error:
             messagebox.showerror("Eliminar política", str(error), parent=self.win)
 
-    def prepare_proxifyre(self):
-        """Create a review-only config, without installing or starting drivers."""
+    def check_native_wfp(self):
+        active = self.guard.managed()
+        messagebox.showinfo(
+            "Estado OneTunnel WFP",
+            f"Bloqueo nativo WFP: {len(active)} ruta(s) activas.\n"
+            "Redirección transparente PROXY: NO DISPONIBLE todavía.\n"
+            "Se necesita desarrollar, certificar y firmar un callout driver WFP.\n\n"
+            "Sin ProxiFyre y sin Windows Firewall para nuevos bloqueos.\n"
+            "Este bloqueo usa filtros efímeros; se retiran al cerrar OneTunnel.\n"
+            "No constituye un kill switch y no intercepta aplicaciones automáticamente.",
+            parent=self.win,
+        )
+
+    def cleanup_legacy_firewall(self):
+        """Removal-only compatibility path for rules made by old builds."""
         try:
-            endpoints = self.endpoint_getter()
-            if endpoints is None:
-                raise RuntimeError("Primero inicia el proxy HTTP/SOCKS5 de OneTunnel")
-            if not self.verified_getter():
-                raise RuntimeError(
-                    "Pulsa COMPROBAR SALIDA en la ventana principal y verifica la IP HTTPS "
-                    "antes de preparar un perfil de captura por aplicación."
-                )
-            profile = build_proxifyre_draft(
-                self.store.load(), endpoints.socks5_port,
-                self.firewall.managed().values(),
-            )
-            preview = describe_proxifyre_draft(profile)
+            legacy = self.legacy_firewall.managed()
+            if not legacy:
+                self.info.configure(text="No hay reglas antiguas de Windows Firewall administradas.")
+                return
             if not messagebox.askyesno(
-                "ProxiFyre — SOLO BORRADOR",
-                preview + "\n\n¿Guardar este borrador sin modificar el sistema?",
+                "Eliminar solo reglas heredadas",
+                f"Hay {len(legacy)} regla(s) antiguas de OneTunnel creadas mediante "
+                "Windows Firewall. ¿Retirarlas con permisos de administrador?\n"
+                "Esto no crea reglas nuevas ni modifica las de otros programas.",
                 parent=self.win,
             ):
                 return
-            target = filedialog.asksaveasfilename(
-                parent=self.win,
-                title="Guardar borrador ProxiFyre (NO app-config.json)",
-                initialfile=DRAFT_FILE_NAME,
-                defaultextension=".json",
-                filetypes=[("Archivo JSON", "*.json")],
-            )
-            if not target:
-                return
-            saved = save_proxifyre_draft(target, profile)
-            self.info.configure(
-                text="Borrador creado. No se modificó el firewall, el servicio ni la red. "
-                     "Revisa DNS/UDP antes de aplicar manualmente en ProxiFyre."
-            )
-            messagebox.showinfo(
-                "Borrador exportado",
-                f"Archivo: {saved}\n\n"
-                "NO se ha activado la redirección. En ProxiFyre oficial "
-                "revisa aplicaciones, SOCKS5 TCP/IPv4 y exclusiones. "
-                "DNS permanece Directo; UDP no está protegido. "
-                "No uses este perfil como kill switch.",
-                parent=self.win,
-            )
-        except (OSError, ValueError, RuntimeError) as error:
-            messagebox.showerror(
-                "ProxiFyre — preparación",
-                str(error), parent=self.win,
-            )
-
-    @staticmethod
-    def _query_service(service: str) -> str:
-        """Read-only sc.exe query; never install, modify or start a service."""
-        if os.name != "nt":
-            return "Solo disponible en Windows"
-        try:
-            result = subprocess.run(
-                ["sc.exe", "query", service],
-                capture_output=True, text=True, timeout=6, check=False,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            return "No se pudo consultar"
-        if result.returncode:
-            return "No está registrado o no es accesible"
-        output = result.stdout.upper()
-        if "RUNNING" in output:
-            return "RUNNING (en ejecución)"
-        if "STOPPED" in output:
-            return "STOPPED (detenido)"
-        return "Registrado (estado indeterminado)"
-
-    def check_proxifyre(self):
-        """Read-only check for the external service and WinpkFilter driver."""
-        service = self._query_service("ProxiFyreService")
-        driver = self._query_service("NDISRD")
-        messagebox.showinfo(
-            "ProxiFyre — estado del equipo (solo lectura)",
-            f"ProxiFyreService: {service}\nNDISRD: {driver}\n\n"
-            "Este diagnóstico NO instala controladores ni ejecuta reglas. "
-            "Un servicio RUNNING tampoco garantiza redirección ni ausencia de fugas. "
-            "Antes de aplicar la configuración, comprueba salida TCP real "
-            "por el SOCKS5 y el comportamiento de DNS, UDP y IPv6.",
-            parent=self.win,
-        )
+            removed = 0
+            for exe in list(legacy.values()):
+                if self.legacy_firewall.unblock(exe):
+                    removed += 1
+            self.info.configure(text=f"Retiradas {removed} reglas heredadas de Windows Firewall.")
+        except (OSError, ValueError, RuntimeError, PermissionError) as error:
+            messagebox.showerror("Retirada de reglas antiguas", str(error), parent=self.win)
 
     def launch_with_proxy(self):
         try:
