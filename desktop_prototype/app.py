@@ -50,7 +50,6 @@ class DesktopApp:
         self.account_panel = None
         self.account_session: AccountSession | None = None
         self._premium_proxy_active = False
-        self._active_access_proxy = None
         self._egress_verified = False
         self._verified_exit_ip: str | None = None
         self.selector: AutoSelector | None = None
