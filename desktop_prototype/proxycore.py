@@ -15,6 +15,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import Callable, Protocol
 
+from access_proxy import AccessProxy, open_via_access_proxy
+
 MAX_HEADER_BYTES = 65536
 HOST_RE = re.compile(r"^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$")
 
@@ -112,10 +114,12 @@ class CandidateSelector(Protocol):
 
 class ProxyRelay:
     def __init__(self, upstream: Upstream, log: Callable[[str], None] | None = None,
-                 selector: CandidateSelector | None = None):
+                 selector: CandidateSelector | None = None,
+                 access_proxy: AccessProxy | None = None):
         self.upstream = upstream.validated()
         self.log = log or (lambda msg: None)
         self.selector = selector
+        self.access_proxy = access_proxy.validated() if access_proxy is not None else None
         self.stop_event = threading.Event()
         self.server: socketserver.ThreadingTCPServer | None = None
         self.thread: threading.Thread | None = None
@@ -164,7 +168,19 @@ class ProxyRelay:
                     for index, upstream in enumerate(choices):
                         try:
                             stage = "conexión TCP al proxy remoto"
-                            with socket.create_connection((upstream.host, upstream.port), timeout=5) as raw:
+                            if relay.access_proxy is None:
+                                raw_socket = socket.create_connection(
+                                    (upstream.host, upstream.port), timeout=5
+                                )
+                            else:
+                                stage = "CONNECT mediante proxy de acceso de la red"
+                                raw_socket = open_via_access_proxy(
+                                    relay.access_proxy,
+                                    upstream.host,
+                                    upstream.port,
+                                    timeout=6,
+                                )
+                            with raw_socket as raw:
                                 stage = "negociación TLS con proxy remoto"
                                 context = ssl.create_default_context()
                                 with context.wrap_socket(raw, server_hostname=upstream.host) as remote:
@@ -224,7 +240,8 @@ class ProxyRelay:
         self.server = Server(("127.0.0.1", local_port), Handler)
         self.thread = threading.Thread(target=self.server.serve_forever, name="local-proxy", daemon=True)
         self.thread.start()
-        self.log(f"Proxy local iniciado en 127.0.0.1:{self.port}")
+        route = "vía proxy de acceso" if self.access_proxy is not None else "salida directa a 1VPN"
+        self.log(f"Proxy local iniciado en 127.0.0.1:{self.port} · {route}")
         return self.port
 
     def stop(self) -> None:
