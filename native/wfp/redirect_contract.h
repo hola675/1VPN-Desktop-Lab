@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef _KERNEL_MODE
+#if defined(_KERNEL_MODE) || defined(_NTDDK_) || defined(_NTIFS_)
 #include <ntddk.h>
 typedef UINT8  OT_U8;
 typedef UINT16 OT_U16;
