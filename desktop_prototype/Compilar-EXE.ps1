@@ -10,8 +10,18 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Instala PyInstaller 6.16.0 para Python 3.13' }
     py -3.13 -m unittest discover -s tests -v
     if ($LASTEXITCODE -ne 0) { throw 'Fallaron pruebas Python' }
-    cmake -S ../native/wfp -B ../native/wfp/build -G "Visual Studio 17 2022" -A x64
-    if ($LASTEXITCODE -ne 0) { throw 'Necesitas CMake y VS 2022 Build Tools' }
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+    if (-not (Test-Path $vswhere)) { throw 'Instala Visual Studio Build Tools con MSVC y Windows SDK' }
+    $vsVersion = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationVersion
+    if (-not $vsVersion) { throw 'No se encontró un compilador MSVC C++' }
+    $vsMajor = [int]($vsVersion.Split('.')[0])
+    $generator = switch ($vsMajor) {
+        17 { 'Visual Studio 17 2022' }
+        18 { 'Visual Studio 18 2026' }
+        default { throw "Visual Studio no compatible: $vsVersion" }
+    }
+    cmake -S ../native/wfp -B ../native/wfp/build -G $generator -A x64
+    if ($LASTEXITCODE -ne 0) { throw "No se pudo configurar WFP con $generator" }
     cmake --build ../native/wfp/build --config Release
     if ($LASTEXITCODE -ne 0) { throw 'No se pudo compilar el motor WFP' }
     $Helper = Join-Path (Resolve-Path ../native/wfp/build/Release).Path 'onetunnel-wfp-guard.exe'
