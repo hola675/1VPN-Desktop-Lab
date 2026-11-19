@@ -14,6 +14,7 @@ from network_engine import NetworkEngine
 from control_panel import TrafficControlPanel
 from native_wfp import NativeWfpGuard
 from native_proxy import NativeProxySession
+from driver_lifecycle import SignedDriverLifecycle
 from server_catalog import COUNTRIES, ServerEndpoint, refresh_catalogue, snapshot_catalogue
 from server_selector import AutoSelector
 from account_panel import AccountPanel
@@ -32,13 +33,14 @@ DEFAULT_LOCAL_PORT = "8899"
 class DesktopApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("1VPN Desktop Lab — Premium y aplicaciones v0.5.2 native-driver-alpha")
+        self.root.title("OneTunnel — Premium + WFP nativo v0.5.3 signed-driver-alpha")
         self.root.geometry("1080x780")
         self.root.minsize(960, 710)
         self.root.configure(bg=BG)
         self.engine = NetworkEngine(self._log)
         self.native_guard = NativeWfpGuard()
-        self.native_proxy = NativeProxySession()  # dormant until signed callout is available
+        self.native_proxy = NativeProxySession()  # active only with signed/loaded callout
+        self.driver_lifecycle = SignedDriverLifecycle()
         self.panel = None
         self.account_panel = None
         self.account_session: AccountSession | None = None
@@ -66,7 +68,7 @@ class DesktopApp:
     def _layout(self):
         shell = tk.Frame(self.root, bg=BG, padx=32, pady=22)
         shell.pack(fill="both", expand=True)
-        self._label(shell, "DESKTOP LAB  /  v0.4.3 beta  /  PREMIUM + HTTP + SOCKS5 + APPS", ACCENT, 11, True).pack(anchor="w")
+        self._label(shell, "ONETUNNEL  /  v0.5.3 signed-driver-alpha  /  PREMIUM + WFP + APPS", ACCENT, 11, True).pack(anchor="w")
         self._label(shell, "Proxy y políticas de tráfico para Windows", TEXT, 23, True).pack(anchor="w", pady=(9, 4))
         self._label(
             shell, "Selección de servidores autorizados Free/Premium. No modifica Wintun ni rutas.",
@@ -366,6 +368,8 @@ class DesktopApp:
             lambda: self.engine.endpoints if self.engine.active else None,
             verified_getter=lambda: self.engine.active and self._egress_verified,
             native_guard=self.native_guard,
+            native_proxy=self.native_proxy,
+            driver_lifecycle=self.driver_lifecycle,
         )
 
     def copy_address(self):
