@@ -70,7 +70,7 @@
     </DriverSign>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="onetunnel_redirect.c" />
+    <ClCompile Include="onetunnel_redirect.cpp" />
     <ClInclude Include="..\wfp\redirect_contract.h" />
     <ClInclude Include="..\wfp\redirect_ids.h" />
   </ItemGroup>
