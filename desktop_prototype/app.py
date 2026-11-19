@@ -1,4 +1,4 @@
-"""OneTunnel v0.5.5: Premium + WFP nativo + certificación transparente de laboratorio."""
+"""OneTunnel v0.6: interfaz premium sobre motor Premium/WFP nativo v0.5.5."""
 from __future__ import annotations
 
 import os
