@@ -72,8 +72,14 @@ class DesktopApp:
         panel.pack(fill="x")
         self.inputs: dict[str, tk.Entry] = {}
         self._label(panel, "Ubicación / selección", TEXT, 10).grid(row=0, column=0, sticky="w", pady=5)
-        choices = ["Automático · Singapur preferido", "Singapur", "Ámsterdam", "Los Ángeles", "Servidor manual"]
-        self.location_combo = ttk.Combobox(panel, values=choices, state="readonly", font=("Segoe UI", 11))
+        self._location_modes = {
+            "Automático · Singapur preferido": "auto",
+            "Singapur": "sgp", "Ámsterdam": "ams",
+            "Los Ángeles": "lax", "Servidor manual": "manual",
+        }
+        self.location_combo = ttk.Combobox(
+            panel, values=list(self._location_modes), state="readonly", font=("Segoe UI", 11)
+        )
         self.location_combo.current(0)
         self.location_combo.grid(row=0, column=1, sticky="ew", padx=(18, 0), pady=5, ipady=5)
         self.location_combo.bind("<<ComboboxSelected>>", self._on_location_changed)
@@ -169,8 +175,7 @@ class DesktopApp:
         self.root.after(150, self._poll_events)
 
     def _current_mode(self) -> str:
-        return {"Automático · Singapur preferido": "auto", "Singapur": "sgp",
-                "Ámsterdam": "ams", "Los Ángeles": "lax", "Servidor manual": "manual"}[self.location_combo.get()]
+        return self._location_modes.get(self.location_combo.get(), "auto")
 
     def _on_location_changed(self, _event=None):
         host_field = self.inputs.get("host")
@@ -184,7 +189,11 @@ class DesktopApp:
         if self._current_mode() == "manual":
             host_field.insert(0, self._manual_host)
         else:
-            host_field.insert(0, "Elegido por el catálogo Free")
+            label = "Elegido por la sesión Premium" if (
+                self.account_session is not None
+                and self.account_session.source == "browser_web"
+            ) else "Elegido por el catálogo Free"
+            host_field.insert(0, label)
             host_field.configure(state="disabled")
 
     def _scan_worker(self, selector: AutoSelector, session: int, refresh: bool):
@@ -298,10 +307,24 @@ class DesktopApp:
             messagebox.showerror("No se pudo iniciar", str(error))
 
     def _set_account_session(self, session: AccountSession | None):
-        if session is None and self._premium_proxy_active and self.engine.active:
-            # Do not retain an authenticated Premium proxy after browser logout.
+        if self._premium_proxy_active and self.engine.active:
+            # Always disconnect old Premium proxy if account is changed/logged out.
             self.disconnect()
         self.account_session = session
+        self._location_modes = {
+            "Automático · Singapur preferido": "auto",
+            "Singapur": "sgp", "Ámsterdam": "ams",
+            "Los Ángeles": "lax", "Servidor manual": "manual",
+        }
+        if session is not None and session.source == "browser_web":
+            for code in sorted({region for region, _, _ in session.proxy_locations}):
+                if code in ("sgp", "ams", "lax"):
+                    continue
+                name = COUNTRIES.get(code, (code.upper(), ""))[0]
+                self._location_modes[f"{name} ({code.upper()})"] = code
+        self.location_combo.configure(values=list(self._location_modes))
+        self.location_combo.current(0)
+        self._on_location_changed()
         if session is None:
             self.account_status.configure(text="Cuenta 1VPN: sesión local cerrada · Proxy independiente", fg=MUTED)
         elif session.source == "browser_web":
