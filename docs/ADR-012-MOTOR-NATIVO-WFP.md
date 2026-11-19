@@ -82,3 +82,11 @@ No basta cambiar el destino de la conexión al puerto SOCKS5 1080: SOCKS5 necesi
 - https://learn.microsoft.com/en-us/windows/win32/api/fwpmu/nf-fwpmu-fwpmgetappidfromfilename0
 - https://learn.microsoft.com/en-us/windows-hardware/drivers/network/using-bind-or-connect-redirection
 - https://learn.microsoft.com/en-us/windows-hardware/drivers/dashboard/driver-signing-offerings
+
+## 7. Avance v0.5.1 — relay transparente de usuario
+
+Se implementó el dataplane de usuario previo al driver: `native/wfp/transparent_relay.cpp`. El relay escucha exclusivamente en loopback (IPv4 e IPv6), exige que el socket aceptado exponga `SIO_QUERY_WFP_CONNECTION_REDIRECT_CONTEXT` y `SIO_QUERY_WFP_CONNECTION_REDIRECT_RECORDS`, valida nuestro ABI versionado y transfiere los redirect records al socket que conecta con el SOCKS5 local. A continuación negocia SOCKS5 CONNECT con el destino original y bombea el flujo TCP en ambas direcciones.
+
+El contexto propio contiene magic, versión, familia, puerto original y 16 bytes de dirección. El futuro callout deberá llenar exactamente ese contexto en `localRedirectContext`, establecer `localRedirectHandle` y `localRedirectTargetPID`, además de consultar el estado de redirección para evitar bucles. El relay no acepta tráfico si faltan records/contexto; esto evita convertir el puerto de relay en un proxy abierto.
+
+CI puede compilar y ejecutar `--self-test` sin instalar filtros. El self-test valida la construcción SOCKS5 IPv4/IPv6, pero no sustituye una prueba con un socket realmente redirigido por WFP. PROXY sigue PENDIENTE hasta implementar y firmar el callout kernel.

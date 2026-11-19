@@ -65,13 +65,17 @@ jobs:
           $sampleExe = Join-Path $env:WINDIR "System32/notepad.exe"
           & native/wfp/build/Release/onetunnel-wfp-guard.exe --dry-run $sampleExe
           if ($LASTEXITCODE -ne 0) { throw "Prevalidación de exe falló" }
-      - name: Crear EXE incluyendo motor WFP propio
+          & native/wfp/build/Release/onetunnel-transparent-relay.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "Relay transparente no responde" }
+          & native/wfp/build/Release/onetunnel-transparent-relay.exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Falló self-test del relay transparente" }
+      - name: Crear EXE incluyendo componentes WFP propios
         shell: pwsh
         working-directory: desktop_prototype
         run: |
           python -m pip install pyinstaller==6.16.0
-          python -m PyInstaller --noconfirm --clean --windowed --onefile --name 1VPN-Desktop-Lab --add-binary '..\\native\\wfp\\build\\Release\\onetunnel-wfp-guard.exe;.' app.py
-          if ($LASTEXITCODE -ne 0) { throw "Error empaquetando motor WFP" }
+          python -m PyInstaller --noconfirm --clean --windowed --onefile --name 1VPN-Desktop-Lab --add-binary '..\\native\\wfp\\build\\Release\\onetunnel-wfp-guard.exe;.' --add-binary '..\\native\\wfp\\build\\Release\\onetunnel-transparent-relay.exe;.' app.py
+          if ($LASTEXITCODE -ne 0) { throw "Error empaquetando componentes WFP" }
       - name: Guardar artefacto
         uses: actions/upload-artifact@v4
         with:

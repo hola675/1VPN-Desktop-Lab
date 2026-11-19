@@ -1,7 +1,8 @@
-"""Firewall Windows para ejecutables explícitos y consentimiento local del usuario.
+"""Compatibilidad de retirada para reglas antiguas de Windows Firewall.
 
-Usa cmdlets nativos de Windows. NO redirige tráfico: solamente bloquea una app.
-Nunca toca la política predeterminada, grupos ajenos, Wintun, DNS o rutas.
+Desde v0.5 OneTunnel NO crea nuevas reglas de Windows Defender Firewall.
+Este módulo existe únicamente para leer el diario legado y retirar, con
+consentimiento, reglas creadas por versiones v0.4.x. El backend nuevo usa WFP.
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ import sys
 import tempfile
 from typing import Callable
 
-from traffic_policy import executable_key, normalize_executable
+from traffic_policy import executable_key
 
 RULE_GROUP = "1VPN Desktop Lab"
 
@@ -100,39 +101,10 @@ class FirewallManager:
             raise RuntimeError(f"PowerShell no pudo aplicar la regla (código {result.returncode})")
 
     def block(self, executable: str) -> str:
-        exe = normalize_executable(executable)
-        if executable_key(exe) == executable_key(sys.executable):
-            raise ValueError("No se puede bloquear el ejecutable del propio motor")
-        system32 = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "System32")
-        if os.path.normcase(exe).startswith(os.path.normcase(system32) + os.sep):
-            raise ValueError("No se permiten bloqueos de ejecutables del sistema")
-        name = rule_name(exe)
-        self._require_admin()  # No registrar intenciones si faltan privilegios.
-        managed = self._load()
-        if name in managed and executable_key(managed[name]) != executable_key(exe):
-            raise RuntimeError("Colisión de nombre de regla")
-        display = f"1VPN Desktop Lab | Bloquear {Path(exe).name} [{name[-8:]}]"
-        script = (
-            f"$existing = Get-NetFirewallRule -Name {psquote(name)} -ErrorAction SilentlyContinue; "
-            "if ($existing) { "
-            f"if ($existing.Group -ne {psquote(RULE_GROUP)}) "
-            "{ throw 'La regla pertenece a un grupo externo' }; "
-            "$program = (Get-NetFirewallApplicationFilter -AssociatedNetFirewallRule $existing).Program; "
-            f"if ($program -ine {psquote(exe)}) "
-            "{ throw 'El programa existente no coincide' } "
-            "} else { "
-            f"New-NetFirewallRule -Name {psquote(name)} -DisplayName {psquote(display)} "
-            f"-Group {psquote(RULE_GROUP)} -Direction Outbound -Action Block "
-            f"-Program {psquote(exe)} -Enabled True -Profile Any | Out-Null "
-            "}"
+        raise RuntimeError(
+            "Función heredada deshabilitada: OneTunnel v0.5 no crea reglas "
+            "de Windows Firewall. Usa el motor WFP nativo."
         )
-        # Diario antes de la ejecución: conserva la capacidad de recuperación tras caída.
-        # Si el comando falla, puede haber quedado una regla creada parcialmente;
-        # unblock() podrá retirarla con validación del grupo.
-        managed[name] = exe
-        self._save(managed)
-        self._execute(script)
-        return name
 
     def unblock(self, executable: str) -> bool:
         name = rule_name(executable)

@@ -10,6 +10,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from firewall_rules import FirewallManager  # Exclusivamente retirada de bloqueos heredados.
 from native_wfp import NativeWfpGuard, FORBIDDEN_APP_NAMES
+from native_redirect import check_redirect_capability
 from traffic_policy import AppPolicy, PolicyStore, app_name_from_path, normalize_app_name, executable_key
 from running_apps import list_running_apps
 
@@ -339,14 +340,25 @@ class TrafficControlPanel:
 
     def check_native_wfp(self):
         active = self.guard.managed()
+        capability = check_redirect_capability()
+        relay = (
+            "incluido y self-test PASS"
+            if capability.relay_self_test
+            else "incluido, pero self-test FALLÓ"
+            if capability.relay_present
+            else "no incluido en esta compilación"
+        )
+        proxy = "LISTO" if capability.transparent_proxy_ready else "PENDIENTE"
         messagebox.showinfo(
             "Estado OneTunnel WFP",
             f"Bloqueo nativo WFP: {len(active)} ruta(s) activas.\n"
-            "Redirección transparente PROXY: NO DISPONIBLE todavía.\n"
-            "Se necesita desarrollar, certificar y firmar un callout driver WFP.\n\n"
+            f"Relay transparente: {relay}.\n"
+            f"PROXY transparente: {proxy}.\n"
+            "Callout driver WFP firmado: PENDIENTE.\n\n"
+            "El relay no se inicia hasta que exista el callout compatible; "
+            "tenerlo empaquetado NO significa que se esté capturando tráfico.\n"
             "Sin ProxiFyre y sin Windows Firewall para nuevos bloqueos.\n"
-            "Este bloqueo usa filtros efímeros; se retiran al cerrar OneTunnel.\n"
-            "No constituye un kill switch y no intercepta aplicaciones automáticamente.",
+            "Los filtros de BLOQUEAR son efímeros y se retiran al cerrar OneTunnel.",
             parent=self.win,
         )
 
