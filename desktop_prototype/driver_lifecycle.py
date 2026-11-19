@@ -395,6 +395,7 @@ class SignedDriverLifecycle:
         self.uninstaller = uninstaller
         self.service_factory = service_factory
         self.admin_check = admin_check
+        self._started_by_this_instance = False
 
     def verify(self, package_dir: str | Path) -> DriverPackageVerification:
         return self.verifier(package_dir)
@@ -409,6 +410,7 @@ class SignedDriverLifecycle:
         service = self.service_factory()
         try:
             service.start()
+            self._started_by_this_instance = True
         except Exception as start_error:
             # Avoid a half-configured package if demand-start fails immediately.
             try:
@@ -437,12 +439,27 @@ class SignedDriverLifecycle:
     def start(self) -> None:
         if not self.admin_check():
             raise PermissionError("Arrancar el motor WFP requiere administrador")
+        was_running = self.service_running()
         self.service_factory().start()
+        if not was_running:
+            self._started_by_this_instance = True
+
+    @property
+    def started_by_this_instance(self) -> bool:
+        return self._started_by_this_instance
 
     def stop(self) -> None:
         if not self.admin_check():
             raise PermissionError("Detener el motor WFP requiere administrador")
         self.service_factory().stop()
+        self._started_by_this_instance = False
+
+    def stop_if_owned(self) -> bool:
+        """Best-effort explicit cleanup for app shutdown; never stop pre-existing service."""
+        if not self._started_by_this_instance:
+            return False
+        self.stop()
+        return True
 
     def uninstall(self, package_dir: str | Path) -> DriverInstallResult:
         verification = self.verifier(package_dir)
@@ -455,4 +472,5 @@ class SignedDriverLifecycle:
             if "no está instalado" not in str(error):
                 raise
         reboot = self.uninstaller(verification.inf_path)
+        self._started_by_this_instance = False
         return DriverInstallResult(False, False, reboot)
