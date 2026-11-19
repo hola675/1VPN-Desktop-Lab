@@ -1,3 +1,9 @@
+## Premium Web Beta — Copiado independiente de emparejamiento (2026-11-18)
+
+- Separados **Puerto local** y **Código temporal** en campos seleccionables, con botones individuales **COPIAR PUERTO** y **COPIAR CÓDIGO**.
+- Cada acción reemplaza el portapapeles solo con el campo solicitado, con confirmación sin revelar el código en el diagnóstico.
+- Añadidas pruebas para copiado exacto e indisponibilidad del portapapeles; sin cambios al protocolo Premium ni a credenciales.
+
 ## Premium Browser Bridge — fase beta (2026-11-18)
 
 - Puente local 127.0.0.1 de emparejamiento explícito y temporal, sin lectura de cookies ni tokens de la extensión ajena.
