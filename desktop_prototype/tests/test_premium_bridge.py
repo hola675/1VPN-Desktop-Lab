@@ -46,6 +46,12 @@ class TestPremiumParsing(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     parse_browser_session({**MOCK, **values})
 
+    def test_proxy_upstream_repr_never_shows_premium_password(self):
+        from proxycore import Upstream
+        upstream = Upstream("proxy.example.org", 443, "web-user", "SECRET_WEB_TOKEN")
+        self.assertNotIn("SECRET_WEB_TOKEN", repr(upstream))
+        self.assertEqual(upstream.password, "SECRET_WEB_TOKEN")
+
     def test_xray_session_does_not_get_browser_source(self):
         source = AccountSession("tester@example.invalid", "tester", True, "dummy")
         self.assertEqual(source.source, "xray")
