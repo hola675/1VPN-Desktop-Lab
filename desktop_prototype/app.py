@@ -229,8 +229,8 @@ class DesktopApp:
 
         advanced_grid = tk.Frame(self.advanced_frame, bg=self.advanced_frame["bg"])
         advanced_grid.pack(fill="x")
-        advanced_grid.columnconfigure(1, weight=1)
-        advanced_grid.columnconfigure(3, weight=1)
+        advanced_grid.columnconfigure(0, weight=1)
+        advanced_grid.columnconfigure(2, weight=1)
 
         self.inputs: dict[str, tk.Entry] = {}
         rows = [
@@ -309,7 +309,11 @@ class DesktopApp:
     def _toggle_advanced(self):
         self._advanced_visible = not self._advanced_visible
         if self._advanced_visible:
-            self.advanced_frame.pack(fill="x", pady=(14, 0), before=self.activity_frame)
+            if self._activity_visible:
+                self.activity_frame.pack_forget()
+            self.advanced_frame.pack(fill="x", pady=(14, 0))
+            if self._activity_visible:
+                self.activity_frame.pack(fill="both", expand=True, pady=(14, 0))
             self.advanced_btn.configure(text="OCULTAR AVANZADO")
         else:
             self.advanced_frame.pack_forget()
@@ -340,9 +344,11 @@ class DesktopApp:
                     self._egress_verified = text.startswith("Salida verificada por el proxy")
                     if self._egress_verified:
                         self._verified_exit_ip = text.rsplit(" ", 1)[-1].strip()
+                        self.address.configure(text=f"IP {self._verified_exit_ip}", fg=ui.SUCCESS)
                     else:
                         self._verified_exit_ip = None
-                    self.status.configure(text=text, fg=ACCENT if self._egress_verified else WARN)
+                        self.address.configure(text="IP sin verificar", fg=WARN)
+                    self.status.configure(text=text, fg=ui.SUCCESS if self._egress_verified else WARN)
                     self._log(text)
                     self.test_btn.configure(state="normal")
                 elif kind == "scan" and session == self.session and self.engine.active:
@@ -471,7 +477,7 @@ class DesktopApp:
             self._premium_proxy_active = bool(browser_premium)
             self._egress_verified = False
             self.session += 1
-            self.btn.configure(text="DESCONECTAR", bg=WARN)
+            self.btn.configure(text="DESCONECTAR", bg=ui.DANGER, fg=TEXT)
             self.test_btn.configure(state="normal")
             self.copy_btn.configure(state="normal")
             self.location_combo.configure(state="disabled")
@@ -581,12 +587,12 @@ class DesktopApp:
         self._scanning = False
         self.location_combo.configure(state="readonly")
         self.scan_btn.configure(state="disabled")
-        self.server_status.configure(text="Servidor: sin seleccionar", fg=MUTED)
+        self.server_status.configure(text="Automático · sin medir", fg=MUTED)
         self.btn.configure(text="CONECTAR", bg=ACCENT)
         self.test_btn.configure(state="disabled")
         self.copy_btn.configure(state="disabled")
-        self.status.configure(text="Desconectado", fg=MUTED)
-        self.address.configure(text="IP sin verificar")
+        self.status.configure(text="Desconectado", fg=TEXT)
+        self.address.configure(text="IP sin verificar", fg=TEXT)
 
     def close(self):
         # Teardown order: PROXY BFE filters -> ephemeral BLOCK filters ->
