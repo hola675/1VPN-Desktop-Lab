@@ -26,6 +26,9 @@ jobs:
         shell: pwsh
         working-directory: desktop_prototype
         run: python -m unittest discover -s tests -v
+      - name: Validar JavaScript de extensión Premium complementaria
+        shell: pwsh
+        run: node --check browser_companion/popup.js
       - name: Crear exe sin driver
         shell: pwsh
         working-directory: desktop_prototype
@@ -37,5 +40,33 @@ jobs:
         with:
           name: 1VPN-Desktop-Lab-v0.4-dev-win-x64
           path: desktop_prototype/dist/1VPN-Desktop-Lab.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Probar arranque del ejecutable empaquetado
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD "desktop_prototype/dist/1VPN-Desktop-Lab.exe"
+          $process = Start-Process -FilePath $exe -PassThru
+          try {
+            Start-Sleep -Seconds 5
+            $process.Refresh()
+            if ($process.HasExited) {
+              throw "El ejecutable terminó al arrancar (código $($process.ExitCode)); revisar Tcl/Tk"
+            }
+          } finally {
+            $process.Refresh()
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+          }
+      - name: Preparar extensión complementaria
+        shell: pwsh
+        run: Compress-Archive -Path browser_companion/* -DestinationPath browser_companion.zip -Force
+      - name: Publicar extensión Premium complementaria
+        uses: actions/upload-artifact@v4
+        with:
+          name: 1VPN-Premium-Browser-Companion
+          path: browser_companion.zip
           if-no-files-found: error
           retention-days: 14
