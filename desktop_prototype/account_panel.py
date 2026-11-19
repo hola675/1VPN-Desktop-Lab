@@ -5,6 +5,7 @@ import queue
 import re
 import threading
 import tkinter as tk
+from tkinter import ttk
 import webbrowser
 from datetime import datetime
 
