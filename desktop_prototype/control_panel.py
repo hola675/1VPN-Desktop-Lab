@@ -11,7 +11,7 @@ from firewall_rules import FirewallManager, rule_name
 from traffic_policy import AppPolicy, PolicyStore, normalize_executable, executable_key
 from running_apps import list_running_apps
 from proxifyre_adapter import (
-    DRAFT_FILE_NAME, build_proxifyre_draft, describe_proxifyre_draft,
+    DRAFT_FILE_NAME, DENIED_TARGETS, build_proxifyre_draft, describe_proxifyre_draft,
     save_proxifyre_draft,
 )
 
@@ -200,6 +200,11 @@ class TrafficControlPanel:
         try:
             exe = self._selected()
             mode = self._mode()
+            if mode in {"TRANSPARENT", "BLOCK"} and Path(exe).name.casefold() in DENIED_TARGETS:
+                raise ValueError(
+                    "No se permite capturar ni bloquear el motor OneTunnel, "
+                    "ProxiFyre, Xray o procesos esenciales de Windows"
+                )
             if mode != "BLOCK" and rule_name(exe) in self.firewall.managed():
                 raise RuntimeError("Retira el bloqueo de firewall antes de cambiar la política")
             self.store.upsert(AppPolicy(exe, mode))
@@ -217,6 +222,8 @@ class TrafficControlPanel:
     def block(self):
         try:
             exe = self._selected()
+            if Path(exe).name.casefold() in DENIED_TARGETS:
+                raise ValueError("Se ha protegido este proceso esencial o portador de VPN contra bloqueos")
             if not messagebox.askyesno("Confirmar bloqueo", f"Se bloquearán las conexiones SALIENTES de:\n{exe}\n\n"
                                        "Esto puede desconectar el programa. ¿Continuar?", parent=self.win):
                 return
