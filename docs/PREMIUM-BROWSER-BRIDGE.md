@@ -24,11 +24,11 @@ falsificar cabeceras, ni sortear respuestas HTTP 403.
 2. Abre chrome://extensions en Chrome, o edge://extensions en Edge.
    Activa modo desarrollador y Cargar descomprimida desde browser_companion/.
 3. Inicia sesión en https://1vpn.org/login/ y navega a
-   https://1vpn.org/account/ con ese mismo navegador.
+   https://1vpn.org/account/ (o su ruta de idioma, como\n   https://1vpn.org/es/account/) con ese mismo navegador.
 4. En 1VPN Desktop Lab, abre INICIAR SESIÓN 1VPN (EMAIL) y pulsa
    PREMIUM WEB (BETA). El escritorio muestra puerto local aleatorio y
    código de un único uso válido durante 5 minutos. Usa **COPIAR PUERTO** y **COPIAR CÓDIGO** por separado (o selecciona cada campo manualmente); no copies los dos juntos.
-5. Con la pestaña oficial /account/ activa, pulsa la extensión auxiliar,
+5. Con la pestaña oficial /account/ o /es/account/ activa, pulsa la extensión auxiliar,
    escribe puerto y código y pulsa VINCULAR CON CONSENTIMIENTO.
 6. Si la web devuelve los campos necesarios, la sesión pasa a la
    aplicación exclusivamente a través de 127.0.0.1. El escritorio
