@@ -195,3 +195,47 @@ jobs:
           path: browser_companion.zip
           if-no-files-found: error
           retention-days: 14
+
+
+  qt-preview:
+    name: Qt v0.7 Preview
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Validar sintaxis Qt y backend
+        shell: pwsh
+        run: python -m compileall -q desktop_prototype
+      - name: Compilar Qt Preview
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File desktop_prototype/Compilar-QT-Preview.ps1
+          if ($LASTEXITCODE -ne 0) { throw "Falló build Qt Preview" }
+      - name: Publicar Qt Preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: OneTunnel-v0.7-qt-preview-win-x64
+          path: desktop_prototype/dist/OneTunnel-Qt-Preview.exe
+          if-no-files-found: error
+          retention-days: 14
+      - name: Smoke EXE Qt empaquetado
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='offscreen'
+          $exe = Join-Path $PWD "desktop_prototype/dist/OneTunnel-Qt-Preview.exe"
+          $process = Start-Process -FilePath $exe -PassThru
+          try {
+            Start-Sleep -Seconds 7
+            $process.Refresh()
+            if ($process.HasExited) {
+              throw "Qt Preview terminó al arrancar (código $($process.ExitCode))"
+            }
+          } finally {
+            $process.Refresh()
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+          }
