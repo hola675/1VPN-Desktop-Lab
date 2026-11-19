@@ -8,7 +8,7 @@ import struct
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-DRIVER = ROOT / "native" / "driver" / "onetunnel_redirect.c"
+DRIVER = ROOT / "native" / "driver" / "onetunnel_redirect.cpp"
 CONTRACT = ROOT / "native" / "wfp" / "redirect_contract.h"
 
 
