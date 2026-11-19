@@ -1,3 +1,9 @@
+## v0.5.2 — callout WFP + control plane (alpha)
+
+OneTunnel ya contiene código propio para el callout kernel `ALE_CONNECT_REDIRECT`, el control plane BFE dinámico y el relay transparente. El control plane solo crea filtros para rutas de aplicaciones seleccionadas y se niega a hacerlo si el callout kernel no está registrado. El supervisor Python inicia relay→control y revierte ambos ante fallo.
+
+**PROXY todavía no se considera utilizable en Windows normal:** el driver de CI es `UNSIGNED`; Windows 11 exige un paquete firmado. No intentes instalar el artefacto CI en el equipo de producción. El próximo gate es build WDK limpio, firma y prueba aislada del paquete, seguido de prueba real de salida IP por aplicación sin parámetros de proxy.
+
 
 ## PROXY transparente nativo — fase relay v0.5.1
 
