@@ -10,6 +10,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 DRIVER = ROOT / "native" / "driver" / "onetunnel_redirect.cpp"
 CONTRACT = ROOT / "native" / "wfp" / "redirect_contract.h"
+CONTROL = ROOT / "native" / "wfp" / "wfp_control.cpp"
 
 
 class DriverSourceGuardrails(unittest.TestCase):
@@ -17,6 +18,7 @@ class DriverSourceGuardrails(unittest.TestCase):
     def setUpClass(cls):
         cls.source = DRIVER.read_text(encoding="utf-8")
         cls.contract = CONTRACT.read_text(encoding="utf-8")
+        cls.control = CONTROL.read_text(encoding="utf-8")
 
     def test_redirect_context_binary_sizes_match_relay(self):
         self.assertEqual(struct.calcsize("<IHHHH16s"), 28)
@@ -49,6 +51,34 @@ class DriverSourceGuardrails(unittest.TestCase):
             "ProxiFyre",
         ):
             self.assertNotIn(forbidden, self.source)
+
+    def test_control_plane_is_dynamic_and_gates_filters_on_registered_driver(self):
+        self.assertIn("FWPM_SESSION_FLAG_DYNAMIC", self.control)
+        self.assertIn("FWPM_CALLOUT_FLAG_REGISTERED", self.control)
+        self.assertIn("ERROR_SERVICE_NOT_ACTIVE", self.control)
+        self.assertIn("FwpmGetAppIdFromFileName0", self.control)
+        self.assertIn("FWPM_CONDITION_ALE_APP_ID", self.control)
+        self.assertIn("FWPM_CONDITION_IP_PROTOCOL", self.control)
+        self.assertIn("FWP_ACTION_CALLOUT_TERMINATING", self.control)
+
+        # Registration check must occur before the function that adds traffic filters.
+        gate = self.control.index("callout_registered(engine.value")
+        filters = self.control.index("add_context_and_filters(")
+        invocation = self.control.rindex("add_context_and_filters(")
+        self.assertLess(gate, invocation)
+        self.assertLess(filters, invocation)
+
+    def test_control_plane_does_not_install_or_start_the_driver(self):
+        for forbidden in (
+            "CreateService",
+            "StartService",
+            "sc.exe",
+            "pnputil",
+            "NtLoadDriver",
+            "New-NetFirewallRule",
+            "ProxiFyre",
+        ):
+            self.assertNotIn(forbidden, self.control)
 
     def test_ci_never_loads_or_installs_driver(self):
         workflow = (ROOT / ".github" / "workflows" / "windows.yml").read_text(encoding="utf-8")
