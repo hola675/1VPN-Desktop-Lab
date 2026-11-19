@@ -32,7 +32,7 @@ DEFAULT_LOCAL_PORT = "8899"
 class DesktopApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("1VPN Desktop Lab — Premium y aplicaciones v0.5.1 native-relay-alpha")
+        self.root.title("1VPN Desktop Lab — Premium y aplicaciones v0.5.2 native-driver-alpha")
         self.root.geometry("1080x780")
         self.root.minsize(960, 710)
         self.root.configure(bg=BG)
