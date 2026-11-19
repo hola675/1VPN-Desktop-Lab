@@ -1,3 +1,14 @@
+## Continuación para agente de código
+
+El desarrollo Qt posterior a v0.7 está preparado para ejecución por agente:
+
+- [Contrato del agente](AGENTS.md)
+- [Siguiente tarea v0.7.1](docs/AGENT-NEXT-TASK-V071.md)
+- [Roadmap Qt v0.7.1 → v0.8](docs/ROADMAP-QT-V071-V080.md)
+- [Especificación de assets Qt](docs/ASSETS-QT-V071.md)
+
+El agente debe generar e integrar los assets siguiendo esa especificación y mantener la UI Tkinter como fallback hasta cumplir los gates definidos en el roadmap.
+
 ## v0.7 Qt Preview — nueva interfaz PySide6
 
 La migración profesional a Qt comenzó **en paralelo** a la UI estable Tkinter. El nuevo `qt_app.py` reutiliza NetworkEngine, Premium, proxy corporativo, políticas por EXE y motores WFP sin depender del frontend anterior. GitHub Actions genera un artefacto independiente `OneTunnel-v0.7-qt-preview-win-x64`, por lo que la versión estable no se sustituye todavía.
