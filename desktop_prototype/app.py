@@ -317,11 +317,15 @@ class DesktopApp:
             "Los Ángeles": "lax", "Servidor manual": "manual",
         }
         if session is not None and session.source == "browser_web":
+            # Only list regions actually authorized by this Premium session.
+            self._location_modes = {"Automático · Singapur preferido": "auto"}
             for code in sorted({region for region, _, _ in session.proxy_locations}):
                 if code in ("sgp", "ams", "lax"):
-                    continue
-                name = COUNTRIES.get(code, (code.upper(), ""))[0]
-                self._location_modes[f"{name} ({code.upper()})"] = code
+                    name = COUNTRIES[code][0]
+                else:
+                    name = f"{code.upper()} · Premium"
+                self._location_modes[name] = code
+            self._location_modes["Servidor manual"] = "manual"
         self.location_combo.configure(values=list(self._location_modes))
         self.location_combo.current(0)
         self._on_location_changed()
