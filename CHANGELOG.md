@@ -1,3 +1,9 @@
+## Premium Browser Bridge — compatibilidad de cuenta localizada (2026-11-18)
+
+- El complemento reconoce las páginas de cuenta oficiales bajo rutas de idioma, incluida /es/account/, sin exigir volver a iniciar sesión.
+- Comprobación de origen https://1vpn.org y ruta de cuenta exacta; rechazo de dominios similares y páginas distintas.
+- Pruebas automáticas JavaScript añadidas a CI; no se ha modificado el manejo de cookies, contraseñas o tokens.
+
 ## Premium Web Beta — Copiado independiente de emparejamiento (2026-11-18)
 
 - Separados **Puerto local** y **Código temporal** en campos seleccionables, con botones individuales **COPIAR PUERTO** y **COPIAR CÓDIGO**.
