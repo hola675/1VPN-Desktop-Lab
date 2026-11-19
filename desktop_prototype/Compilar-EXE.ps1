@@ -24,9 +24,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "No se pudo configurar WFP con $generator" }
     cmake --build ../native/wfp/build --config Release
     if ($LASTEXITCODE -ne 0) { throw 'No se pudo compilar el motor WFP' }
-    $Helper = Join-Path (Resolve-Path ../native/wfp/build/Release).Path 'onetunnel-wfp-guard.exe'
+    $NativeDir = (Resolve-Path ../native/wfp/build/Release).Path
+    $Helper = Join-Path $NativeDir 'onetunnel-wfp-guard.exe'
+    $Relay = Join-Path $NativeDir 'onetunnel-transparent-relay.exe'
     if (-not (Test-Path $Helper)) { throw 'No existe el helper WFP' }
-    py -3.13 -m PyInstaller --noconfirm --clean --windowed --onefile --name 1VPN-Desktop-Lab --add-binary "$Helper;." app.py
+    if (-not (Test-Path $Relay)) { throw 'No existe el relay transparente' }
+    & $Relay --self-test
+    if ($LASTEXITCODE -ne 0) { throw 'Falló el self-test del relay transparente' }
+    py -3.13 -m PyInstaller --noconfirm --clean --windowed --onefile --name 1VPN-Desktop-Lab --add-binary "$Helper;." --add-binary "$Relay;." app.py
     if ($LASTEXITCODE -ne 0) { throw 'Error empaquetando el EXE' }
     Write-Host 'EXE con WFP nativo en desktop_prototype/dist/1VPN-Desktop-Lab.exe' -ForegroundColor Green
 } finally {
