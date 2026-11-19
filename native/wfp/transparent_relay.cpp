@@ -255,6 +255,9 @@ Socket make_listener(int family, std::uint16_t port) {
         if (bind(listener.value, reinterpret_cast<sockaddr*>(&address),
                  sizeof(address)) != 0) return {};
     } else {
+        BOOL v6Only = TRUE;
+        setsockopt(listener.value, IPPROTO_IPV6, IPV6_V6ONLY,
+                   reinterpret_cast<const char*>(&v6Only), sizeof(v6Only));
         sockaddr_in6 address{};
         address.sin6_family = AF_INET6;
         address.sin6_port = htons(port);
@@ -266,13 +269,29 @@ Socket make_listener(int family, std::uint16_t port) {
     return listener;
 }
 
-bool parse_port(const wchar_t* value, std::uint16_t& port) {
+bool parse_port(const wchar_t* value, std::uint16_t& port, bool allowZero = false) {
     try {
         unsigned long parsed = std::stoul(value);
-        if (parsed == 0 || parsed > 65535) return false;
+        if ((!allowZero && parsed == 0) || parsed > 65535) return false;
         port = static_cast<std::uint16_t>(parsed);
         return true;
     } catch (...) { return false; }
+}
+
+bool bound_port(SOCKET socket, std::uint16_t& port) {
+    sockaddr_storage address{};
+    int length = sizeof(address);
+    if (getsockname(socket, reinterpret_cast<sockaddr*>(&address), &length) != 0)
+        return false;
+    if (address.ss_family == AF_INET) {
+        port = ntohs(reinterpret_cast<sockaddr_in*>(&address)->sin_port);
+        return port != 0;
+    }
+    if (address.ss_family == AF_INET6) {
+        port = ntohs(reinterpret_cast<sockaddr_in6*>(&address)->sin6_port);
+        return port != 0;
+    }
+    return false;
 }
 
 int self_test() {
@@ -315,7 +334,7 @@ int wmain(int argc, wchar_t** argv) {
     for (int i = 1; i < argc; ++i) {
         const std::wstring arg(argv[i]);
         if (arg == L"--listen-port" && i + 1 < argc) {
-            if (!parse_port(argv[++i], listenPort)) return 2;
+            if (!parse_port(argv[++i], listenPort, true)) return 2;
         } else if (arg == L"--socks-port" && i + 1 < argc) {
             if (!parse_port(argv[++i], socksPort)) return 2;
         } else {
@@ -328,14 +347,20 @@ int wmain(int argc, wchar_t** argv) {
     Winsock winsock;
     if (!winsock.ok) return 3;
     Socket v4 = make_listener(AF_INET, listenPort);
-    Socket v6 = make_listener(AF_INET6, listenPort);
-    if (!v4 || !v6) {
-        std::wcerr << L"Could not bind transparent relay loopback listeners.\n";
+    if (!v4) {
+        std::wcerr << L"Could not bind transparent relay IPv4 loopback listener.\n";
+        return 4;
+    }
+    std::uint16_t actualPort = listenPort;
+    if (!bound_port(v4.value, actualPort)) return 4;
+    Socket v6 = make_listener(AF_INET6, actualPort);
+    if (!v6) {
+        std::wcerr << L"Could not bind transparent relay IPv6 loopback listener.\n";
         return 4;
     }
 
     std::atomic<int> concurrent{0};
-    std::wcout << L"READY " << listenPort << L" " << socksPort << std::endl;
+    std::wcout << L"READY " << actualPort << L" " << socksPort << std::endl;
     while (true) {
         fd_set read{};
         FD_ZERO(&read);

@@ -1,0 +1,70 @@
+; OneTunnel WFP redirect callout driver package template.
+; This INF is NOT invoked by the desktop app or CI. Production distribution
+; requires a Microsoft-accepted signed catalog and controlled installer flow.
+
+[Version]
+Signature   = "$Windows NT$"
+Class       = WFPCALLOUTS
+ClassGuid   = {57465043-616C-6C6F-7574-5F636C617373}
+Provider    = %Provider%
+CatalogFile = OneTunnelRedirect.cat
+DriverVer   =
+PnpLockdown = 1
+
+[SourceDisksNames.amd64]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles.amd64]
+onetunnel-wfp-redirect.sys = 1,,
+
+[ClassInstall32.ntamd64]
+AddReg = WfpCalloutClassReg
+
+[DestinationDirs]
+OneTunnelRedirect.CopyFiles = 12
+OneTunnelRedirect.DelFiles = 12
+
+[DefaultInstall.ntamd64]
+OptionDesc = %Description%
+CopyFiles  = OneTunnelRedirect.CopyFiles
+
+[DefaultInstall.ntamd64.Services]
+AddService = %ServiceName%,,OneTunnelRedirect.Service
+
+[DefaultUninstall.ntamd64]
+LegacyUninstall = 1
+DelFiles = OneTunnelRedirect.DelFiles
+DelReg   = WfpCalloutClassReg
+
+[DefaultUninstall.ntamd64.Services]
+DelService = %ServiceName%,0x200
+
+[WfpCalloutClassReg]
+HKR,,,0
+HKR,,Icon,,
+HKR,,SilentInstall,,
+HKR,,DeviceCharacteristics,0x10001,0x100
+
+[OneTunnelRedirect.CopyFiles]
+onetunnel-wfp-redirect.sys,,,0x00000040
+
+[OneTunnelRedirect.DelFiles]
+onetunnel-wfp-redirect.sys
+
+[OneTunnelRedirect.Service]
+DisplayName   = %ServiceDisplayName%
+Description   = %ServiceDescription%
+ServiceType   = 1
+StartType     = 3
+ErrorControl  = 1
+ServiceBinary = %12%\onetunnel-wfp-redirect.sys
+LoadOrderGroup = NDIS
+Dependencies = BFE
+
+[Strings]
+Provider           = "OneTunnel"
+Description        = "OneTunnel WFP Transparent Redirect Callout"
+ServiceName        = "OneTunnelWfpRedirect"
+ServiceDisplayName = "OneTunnel WFP Redirect"
+ServiceDescription = "OneTunnel per-application transparent TCP redirect callout"
+DiskName           = "OneTunnel WFP Driver Package"

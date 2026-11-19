@@ -13,6 +13,7 @@ from proxycore import Upstream
 from network_engine import NetworkEngine
 from control_panel import TrafficControlPanel
 from native_wfp import NativeWfpGuard
+from native_proxy import NativeProxySession
 from server_catalog import COUNTRIES, ServerEndpoint, refresh_catalogue, snapshot_catalogue
 from server_selector import AutoSelector
 from account_panel import AccountPanel
@@ -31,12 +32,13 @@ DEFAULT_LOCAL_PORT = "8899"
 class DesktopApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("1VPN Desktop Lab — Premium y aplicaciones v0.5.1 native-relay-alpha")
+        self.root.title("1VPN Desktop Lab — Premium y aplicaciones v0.5.2 native-driver-alpha")
         self.root.geometry("1080x780")
         self.root.minsize(960, 710)
         self.root.configure(bg=BG)
         self.engine = NetworkEngine(self._log)
         self.native_guard = NativeWfpGuard()
+        self.native_proxy = NativeProxySession()  # dormant until signed callout is available
         self.panel = None
         self.account_panel = None
         self.account_session: AccountSession | None = None
@@ -409,7 +411,8 @@ class DesktopApp:
         self.address.configure(text="Dirección local: —")
 
     def close(self):
-        # Dynamic WFP sessions are removed before the UI exits.
+        # Remove transparent BFE filters first, then BLOCK filters, before UI exit.
+        self.native_proxy.stop()
         self.native_guard.stop()
         self.disconnect()
         self.account_session = None

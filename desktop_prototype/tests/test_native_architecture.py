@@ -23,9 +23,10 @@ class NativeArchitectureGuardrails(unittest.TestCase):
         redirect = (ROOT / "native_redirect.py").read_text(encoding="utf-8")
         self.assertIn("callout_driver_ready: bool = False", redirect)
         panel = (ROOT / "control_panel.py").read_text(encoding="utf-8")
-        self.assertIn("Callout driver WFP firmado: PENDIENTE", panel)
+        self.assertIn("Callout driver WFP firmado/cargado: PENDIENTE", panel)
 
     def test_native_sources_are_first_party_targets(self):
         cmake = (ROOT.parent / "native" / "wfp" / "CMakeLists.txt").read_text(encoding="utf-8")
         self.assertIn("onetunnel-wfp-guard", cmake)
         self.assertIn("onetunnel-transparent-relay", cmake)
+        self.assertIn("onetunnel-wfp-control", cmake)
