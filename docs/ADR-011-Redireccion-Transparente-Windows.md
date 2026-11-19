@@ -83,3 +83,7 @@ Se implementó una primera integración **por aplicación EXE** en desktop_proto
 Ver el procedimiento detallado y limitaciones en docs/PROXIFYRE-POR-EXE-V042.md. La decisión original de preservar Windows/Wintun y evitar cambios ocultos permanece.
 
 **Compatibilidad con Proxifier:** no activar simultáneamente el controlador de ProxiFyre y un proxificador de terceros sin pruebas aisladas. El laboratorio inicial debe usar solo un motor de captura activo, con reversión posible.
+
+## 2026-11-19: corrección de criterio de identidad v0.4.3
+
+Decisión explícita del usuario: las reglas deben coincidir por el **nombre del EXE** (p. ej. chrome.exe), no por su ubicación o ruta; igual que el campo Applications de Proxifier. Los perfiles ProxiFyre usan nombres; DIRECTO usa exclusiones por nombre. El bloqueo Windows Firewall no admite coincidencia global por basename mediante -Program: se conserva internamente una regla por ruta detectada y se informa de que las copias nuevas no quedan bloqueadas automáticamente. Schema v2 de política, con importación v1 segura y detección de conflictos. Consultar [guía v0.4.3](POLITICAS-POR-NOMBRE-EXE-V043.md).
