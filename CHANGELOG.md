@@ -1,3 +1,12 @@
+## v0.4.3 beta — Reglas por nombre de EXE, como Proxifier (2026-11-19)
+
+- Políticas PROXY / DIRECTO / BLOQUEAR identificadas únicamente por basename exacto (chrome.exe), sin exigir rutas ni destino IP; schema de políticas v2.
+- Migración segura de antiguas políticas v1 por ruta; conflictos por nombres iguales/modos distintos detienen la migración sin sobrescribir el archivo.
+- Tabla de procesos agrupa PID y todas las instalaciones del mismo nombre; el buscador .exe introduce solo el nombre.
+- Exportación ProxiFyre con appNames y excludes por nombre, no rutas.
+- BLOQUEAR aplica reglas Windows Firewall a las rutas detectadas del nombre con confirmación y administrador; no cubre nuevas rutas automáticamente.
+- Pruebas de migración, coincidencia, varios directorios, aplicación y retirada de bloqueos con firewall simulado. ProxiFyre sigue siendo externo.
+
 ## v0.4.2 beta — aplicaciones EXE y adaptación ProxiFyre (2026-11-19)
 
 - Descubrimiento de aplicaciones Windows en ejecución mediante API Win32 en solo lectura, con PID, ruta completa y política; actualización en el panel cada 10 segundos.
