@@ -218,3 +218,9 @@ de salida HTTPS por el proxy.
 Consulta [instrucciones y límites](docs/PREMIUM-BROWSER-BRIDGE.md).
 El acceso Android/Xray sigue siendo una integración independiente: su
 HTTP 403 no indica que la cuenta web sea inválida.
+
+## Control por aplicación EXE (v0.4.2 beta)
+
+En **APLICACIONES / FIREWALL**, OneTunnel muestra programas Windows en ejecución con sus PID y permite seleccionar políticas **PROXY**, **DIRECTO** y **BLOQUEAR** por ruta completa del ejecutable. La elección se aplica a todas las instancias del mismo EXE, no a dominios/IP. El bloqueo saliente usa Windows Firewall y exige confirmación/administrador. Para redirección transparente PROXY se necesita **ProxiFyre + Windows Packet Filter** instalados externamente; esta versión genera una configuración de prueba que debe revisarse/aplicarse en la GUI oficial de ProxiFyre. Ningún controlador se instala automáticamente ni se alteran rutas del sistema. **UDP/QUIC/DNS no están protegidos por este puente TCP** y no existe kill switch certificado.
+
+Consulta [guía y pruebas por EXE](docs/PROXIFYRE-POR-EXE-V042.md).

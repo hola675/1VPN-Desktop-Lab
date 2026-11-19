@@ -26,6 +26,12 @@ jobs:
         shell: pwsh
         working-directory: desktop_prototype
         run: python -m unittest discover -s tests -v
+      - name: Smoke UI panel de aplicaciones por EXE
+        shell: pwsh
+        working-directory: desktop_prototype
+        run: |
+          python -c 'import tkinter as tk; from control_panel import TrafficControlPanel; root = tk.Tk(); root.withdraw(); panel = TrafficControlPanel(root, lambda: None); root.update(); assert panel.win.winfo_exists(); panel.win.destroy(); root.destroy()'
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo abrir el panel de aplicaciones" }
       - name: Validar JavaScript y rutas de cuenta Premium
         shell: pwsh
         run: |

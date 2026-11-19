@@ -1,6 +1,6 @@
 # 1VPN Desktop Lab — Proxificador transparente Windows (ADR-011)
 
-**Versión:** 0.3.0-alpha | **Fecha:** 2026-11-13 | **Estado:** diseño aprobado para prototipo; sin despliegue de drivers ni firewall.
+**Versión:** 0.4.2-beta | **Actualizado:** 2026-11-19 | **Estado:** políticas por .exe y exportador de ProxiFyre implementados; controlador y captura externa pendientes de certificación.
 
 ## Qué repositorio usar
 
@@ -32,6 +32,11 @@ Internet
 `DIRECTO` no se intercepta; `BLOQUEAR` requiere una política apropiada de Windows Firewall/WFP que aún NO está implementada. Ni este puente ni el firewall por sí solos capturan procesos Windows.
 
 ## Qué está implementado
+
+- **v0.4.2-beta**: listado de ejecutables Windows en ejecución (Win32), agrupación por PID/ruta, selección PROXY / DIRECTO / BLOQUEAR por .exe, no por destino IP.
+- Exportación ProxiFyre de reglas PROXY TCP/IPv4 y exclusiones DIRECTO; BLOCK se gestiona separadamente por Firewall Windows con confirmación y administrador.
+- El perfil de captura solo se genera si se verificó antes la salida HTTPS del proxy local; exportarlo NO instala/activa el controlador.
+- Tests unitarios y smoke UI Windows; guía: [Políticas por EXE v0.4.2](PROXIFYRE-POR-EXE-V042.md).
 
 - `desktop_prototype/socks5_bridge.py`: listener SOCKS5 en loopback, protocolo RFC 1928: NO AUTH (solo localhost), CONNECT TCP con nombres de dominio, IPv4 e IPv6 destino, traducción a HTTP CONNECT, respuestas de error explícitas y cierre reversible.
 - **No UDP/BIND ni autenticación SOCKS local**; esto es deliberado: el upstream HTTP CONNECT actual no encapsula UDP.
