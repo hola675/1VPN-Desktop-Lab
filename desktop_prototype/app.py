@@ -19,13 +19,14 @@ from server_catalog import COUNTRIES, ServerEndpoint, refresh_catalogue, snapsho
 from server_selector import AutoSelector
 from account_panel import AccountPanel
 from account_auth import AccountSession
+import ui_theme as ui
 
-BG = "#0d1524"
-PANEL = "#142238"
-TEXT = "#ecf4ff"
-MUTED = "#a9bdd9"
-ACCENT = "#4bc7e6"
-WARN = "#f4b26c"
+BG = ui.BG
+PANEL = ui.SURFACE
+TEXT = ui.TEXT
+MUTED = ui.MUTED
+ACCENT = ui.ACCENT
+WARN = ui.WARN
 LOCAL_HOST = "127.0.0.1"
 DEFAULT_LOCAL_PORT = "8899"
 
@@ -33,10 +34,13 @@ DEFAULT_LOCAL_PORT = "8899"
 class DesktopApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("OneTunnel — Premium + WFP nativo v0.5.5 certification-alpha")
-        self.root.geometry("1080x780")
-        self.root.minsize(960, 710)
-        self.root.configure(bg=BG)
+        ui.apply_root(
+            self.root,
+            title="OneTunnel — VPN por aplicación",
+            geometry="1120x760",
+            minsize=(980, 700),
+        )
+        ui.configure_ttk(self.root)
         self.engine = NetworkEngine(self._log)
         self.native_guard = NativeWfpGuard()
         self.native_proxy = NativeProxySession()  # active only with signed/loaded callout
@@ -67,95 +71,258 @@ class DesktopApp:
         )
 
     def _layout(self):
-        shell = tk.Frame(self.root, bg=BG, padx=32, pady=22)
-        shell.pack(fill="both", expand=True)
-        self._label(shell, "ONETUNNEL  /  v0.5.5 certification-alpha  /  PREMIUM + WFP + APPS", ACCENT, 11, True).pack(anchor="w")
-        self._label(shell, "Proxy y políticas de tráfico para Windows", TEXT, 23, True).pack(anchor="w", pady=(9, 4))
-        self._label(
-            shell, "Selección de servidores autorizados Free/Premium. No modifica Wintun ni rutas.",
-            MUTED, 10,
-        ).pack(anchor="w", pady=(0, 17))
+        self._advanced_visible = False
+        self._activity_visible = False
 
-        panel = tk.Frame(shell, bg=PANEL, padx=22, pady=14)
-        panel.pack(fill="x")
-        self.inputs: dict[str, tk.Entry] = {}
-        self._label(panel, "Ubicación / selección", TEXT, 10).grid(row=0, column=0, sticky="w", pady=5)
+        shell = tk.Frame(self.root, bg=BG, padx=28, pady=22)
+        shell.pack(fill="both", expand=True)
+
+        # Header: brand + minimal product state.
+        header = tk.Frame(shell, bg=BG)
+        header.pack(fill="x", pady=(0, 18))
+        brand = tk.Frame(header, bg=BG)
+        brand.pack(side="left")
+        ui.label(brand, "OneTunnel", color=TEXT, size=22, bold=True).pack(side="left")
+        ui.badge(brand, "v0.6 PREMIUM UI", tone="accent").pack(side="left", padx=(10, 0))
+        ui.label(
+            header,
+            "VPN por aplicación · motor WFP nativo",
+            color=MUTED,
+            size=9,
+        ).pack(side="right", pady=(7, 0))
+
+        # Main connection card.
+        hero = ui.card(shell, padx=22, pady=20)
+        hero.pack(fill="x")
+
+        hero_top = tk.Frame(hero, bg=hero["bg"])
+        hero_top.pack(fill="x")
+        title_area = tk.Frame(hero_top, bg=hero["bg"])
+        title_area.pack(side="left", fill="x", expand=True)
+        ui.label(title_area, "Conexión", color=MUTED, size=9, bold=True).pack(anchor="w")
+        self.status = ui.label(
+            title_area, "Desconectado", color=TEXT, size=18, bold=True
+        )
+        self.status.pack(anchor="w", pady=(4, 0))
+
+        self.btn = ui.button(
+            hero_top, "CONECTAR", self.toggle, variant="primary", width=15
+        )
+        self.btn.pack(side="right")
+
+        controls = tk.Frame(hero, bg=hero["bg"])
+        controls.pack(fill="x", pady=(18, 0))
+        controls.columnconfigure(0, weight=1)
+        controls.columnconfigure(1, weight=1)
+
+        location_card = tk.Frame(controls, bg=hero["bg"])
+        location_card.grid(row=0, column=0, sticky="ew", padx=(0, 10))
+        ui.label(location_card, "UBICACIÓN", color=MUTED, size=8, bold=True).pack(anchor="w")
         self._location_modes = {
             "Automático · Singapur preferido": "auto",
-            "Singapur": "sgp", "Ámsterdam": "ams",
-            "Los Ángeles": "lax", "Servidor manual": "manual",
+            "Singapur": "sgp",
+            "Ámsterdam": "ams",
+            "Los Ángeles": "lax",
+            "Servidor manual": "manual",
         }
         self.location_combo = ttk.Combobox(
-            panel, values=list(self._location_modes), state="readonly", font=("Segoe UI", 11)
+            location_card,
+            values=list(self._location_modes),
+            state="readonly",
+            style="OneTunnel.TCombobox",
         )
         self.location_combo.current(0)
-        self.location_combo.grid(row=0, column=1, sticky="ew", padx=(18, 0), pady=5, ipady=5)
+        self.location_combo.pack(fill="x", pady=(5, 0))
         self.location_combo.bind("<<ComboboxSelected>>", self._on_location_changed)
+
+        account_card = tk.Frame(controls, bg=hero["bg"])
+        account_card.grid(row=0, column=1, sticky="ew", padx=(10, 0))
+        ui.label(account_card, "CUENTA", color=MUTED, size=8, bold=True).pack(anchor="w")
+        account_line = tk.Frame(account_card, bg=hero["bg"])
+        account_line.pack(fill="x", pady=(5, 0))
+        self.account_status = ui.label(
+            account_line,
+            "Sin cuenta vinculada",
+            color=MUTED,
+            size=9,
+        )
+        self.account_status.pack(side="left", fill="x", expand=True)
+        self.account_btn = ui.button(
+            account_line, "CUENTA", self.open_account, variant="secondary", compact=True
+        )
+        self.account_btn.pack(side="right")
+
+        # At-a-glance state. Technical values are readable but never dominate.
+        stats = tk.Frame(shell, bg=BG)
+        stats.pack(fill="x", pady=(14, 0))
+        for column in range(3):
+            stats.columnconfigure(column, weight=1)
+
+        ip_card = ui.card(stats, padx=16, pady=13)
+        ip_card.grid(row=0, column=0, sticky="nsew", padx=(0, 7))
+        ui.label(ip_card, "SALIDA", color=MUTED, size=8, bold=True).pack(anchor="w")
+        self.address = ui.label(ip_card, "IP sin verificar", color=TEXT, size=10, bold=True)
+        self.address.pack(anchor="w", pady=(5, 0))
+
+        server_card = ui.card(stats, padx=16, pady=13)
+        server_card.grid(row=0, column=1, sticky="nsew", padx=7)
+        ui.label(server_card, "SERVIDOR", color=MUTED, size=8, bold=True).pack(anchor="w")
+        self.server_status = ui.label(
+            server_card, "Automático · sin medir", color=TEXT, size=10, bold=True
+        )
+        self.server_status.pack(anchor="w", pady=(5, 0))
+
+        engine_card = ui.card(stats, padx=16, pady=13)
+        engine_card.grid(row=0, column=2, sticky="nsew", padx=(7, 0))
+        ui.label(engine_card, "MOTOR", color=MUTED, size=8, bold=True).pack(anchor="w")
+        ui.label(
+            engine_card,
+            "WFP nativo · por aplicación",
+            color=ui.SUCCESS,
+            size=10,
+            bold=True,
+        ).pack(anchor="w", pady=(5, 0))
+
+        # Primary actions: user goals, not implementation details.
+        actions = tk.Frame(shell, bg=BG)
+        actions.pack(fill="x", pady=(14, 0))
+        self.manage_btn = ui.button(
+            actions, "APLICACIONES", self.open_traffic_control, variant="secondary"
+        )
+        self.manage_btn.pack(side="left")
+        self.test_btn = ui.button(
+            actions, "VERIFICAR SALIDA", self.test_exit, variant="secondary"
+        )
+        self.test_btn.configure(state="disabled")
+        self.test_btn.pack(side="left", padx=(8, 0))
+        self.scan_btn = ui.button(
+            actions, "ELEGIR MEJOR SERVIDOR", self.scan_servers, variant="secondary"
+        )
+        self.scan_btn.configure(state="disabled")
+        self.scan_btn.pack(side="left", padx=(8, 0))
+        self.advanced_btn = ui.button(
+            actions, "AVANZADO", self._toggle_advanced, variant="ghost"
+        )
+        self.advanced_btn.pack(side="right")
+        self.activity_btn = ui.button(
+            actions, "ACTIVIDAD", self._toggle_activity, variant="ghost"
+        )
+        self.activity_btn.pack(side="right", padx=(0, 8))
+
+        # Progressive disclosure: all legacy inputs remain available and functional.
+        self.advanced_frame = ui.card(shell, padx=18, pady=16, bg=ui.SURFACE)
+        advanced_title = tk.Frame(self.advanced_frame, bg=self.advanced_frame["bg"])
+        advanced_title.pack(fill="x", pady=(0, 10))
+        ui.label(
+            advanced_title,
+            "Configuración avanzada",
+            color=TEXT,
+            size=11,
+            bold=True,
+        ).pack(side="left")
+        ui.label(
+            advanced_title,
+            "Solo para diagnóstico, servidor manual y puertos locales",
+            color=MUTED,
+            size=9,
+        ).pack(side="right")
+
+        advanced_grid = tk.Frame(self.advanced_frame, bg=self.advanced_frame["bg"])
+        advanced_grid.pack(fill="x")
+        advanced_grid.columnconfigure(1, weight=1)
+        advanced_grid.columnconfigure(3, weight=1)
+
+        self.inputs: dict[str, tk.Entry] = {}
         rows = [
-            ("host", "Servidor proxy HTTPS remoto", "", False),
-            ("port", "Puerto remoto (TLS)", "443", False),
-            ("username", "Usuario del PROXY (no email de cuenta)", "", False),
-            ("password", "Clave del PROXY (no clave de cuenta)", "", True),
-            ("local_port", "Puerto HTTP local (0 = automático)", DEFAULT_LOCAL_PORT, False),
-            ("socks_port", "Puerto SOCKS5 local (0 = automático)", "1080", False),
+            ("host", "Servidor remoto", "", False),
+            ("port", "Puerto TLS", "443", False),
+            ("username", "Usuario del proxy", "", False),
+            ("password", "Clave del proxy", "", True),
+            ("local_port", "Puerto HTTP local", DEFAULT_LOCAL_PORT, False),
+            ("socks_port", "Puerto SOCKS5 local", "1080", False),
         ]
-        for i, (key, name, default, secret) in enumerate(rows, start=1):
-            self._label(panel, name, TEXT, 10).grid(row=i, column=0, sticky="w", pady=5)
-            entry = tk.Entry(panel, bg=BG, fg=TEXT, insertbackground=TEXT, relief="flat",
-                             font=("Consolas", 11), show="*" if secret else "")
-            entry.insert(0, default)
-            entry.grid(row=i, column=1, sticky="ew", padx=(18, 0), pady=5, ipady=7)
-            self.inputs[key] = entry
-        panel.columnconfigure(1, weight=1)
+        for index, (key, caption, default, secret) in enumerate(rows):
+            row, pair = divmod(index, 2)
+            col = pair * 2
+            ui.label(
+                advanced_grid, caption, color=MUTED, size=8, bold=True
+            ).grid(row=row * 2, column=col, sticky="w", padx=(0, 8), pady=(3, 0))
+            field = ui.entry(advanced_grid, secret=secret, mono=True)
+            field.insert(0, default)
+            field.grid(
+                row=row * 2 + 1,
+                column=col,
+                columnspan=1,
+                sticky="ew",
+                padx=(0 if col == 0 else 12, 10 if col == 0 else 0),
+                pady=(3, 8),
+                ipady=6,
+            )
+            self.inputs[key] = field
+
+        advanced_actions = tk.Frame(self.advanced_frame, bg=self.advanced_frame["bg"])
+        advanced_actions.pack(fill="x", pady=(4, 0))
+        self.copy_btn = ui.button(
+            advanced_actions,
+            "COPIAR PROXY LOCAL",
+            self.copy_address,
+            variant="secondary",
+            compact=True,
+        )
+        self.copy_btn.configure(state="disabled")
+        self.copy_btn.pack(side="left")
+        ui.label(
+            advanced_actions,
+            "HTTP CONNECT + SOCKS5 locales. No cambia Wintun ni el proxy global de Windows.",
+            color=MUTED,
+            size=8,
+        ).pack(side="left", padx=(12, 0))
         self._on_location_changed()
 
-        bar = tk.Frame(shell, bg=BG)
-        bar.pack(fill="x", pady=(16, 6))
-        self.btn = tk.Button(bar, text="INICIAR PROXY", command=self.toggle,
-                             bg=ACCENT, fg=BG, activebackground="#93e7fa", relief="flat",
-                             font=("Segoe UI", 10, "bold"), padx=15, pady=11)
-        self.btn.pack(side="left")
-        self.manage_btn = tk.Button(bar, text="APLICACIONES / FIREWALL", command=self.open_traffic_control,
-                                    bg=PANEL, fg=ACCENT, relief="flat", font=("Segoe UI", 10, "bold"),
-                                    padx=13, pady=11)
-        self.manage_btn.pack(side="left", padx=(10, 0))
-        self.test_btn = tk.Button(bar, text="COMPROBAR SALIDA", command=self.test_exit,
-                                  bg=PANEL, fg=TEXT, relief="flat", state="disabled",
-                                  font=("Segoe UI", 10, "bold"), padx=13, pady=11)
-        self.test_btn.pack(side="left", padx=(10, 0))
-        self.copy_btn = tk.Button(bar, text="COPIAR DIRECCIÓN", command=self.copy_address,
-                                  bg=PANEL, fg=TEXT, relief="flat", state="disabled",
-                                  font=("Segoe UI", 10, "bold"), padx=13, pady=11)
-        self.copy_btn.pack(side="left", padx=(10, 0))
-        self.scan_btn = tk.Button(bar, text="MEDIR SERVIDORES", command=self.scan_servers,
-                                  bg=PANEL, fg=ACCENT, relief="flat", state="disabled",
-                                  font=("Segoe UI", 10, "bold"), padx=10, pady=11)
-        self.scan_btn.pack(side="left", padx=(10, 0))
-        auth_bar = tk.Frame(shell, bg=BG)
-        auth_bar.pack(fill="x", pady=(4, 3))
-        self.account_btn = tk.Button(auth_bar, text="INICIAR SESIÓN 1VPN (EMAIL)", command=self.open_account,
-                                     bg=PANEL, fg=ACCENT, relief="flat", font=("Segoe UI", 10, "bold"),
-                                     padx=11, pady=7)
-        self.account_btn.pack(side="left")
-        self.account_status = self._label(auth_bar, "Cuenta 1VPN: no conectada · Proxy: credenciales independientes", MUTED, 9)
-        self.account_status.pack(side="left", padx=12)
-        self.status = self._label(shell, "Desconectado", MUTED, 11, True)
-        self.status.pack(anchor="w", pady=(7, 7))
-        self.address = self._label(shell, "Dirección local: —", TEXT, 11, True)
-        self.address.pack(anchor="w")
-        self.server_status = self._label(shell, "Servidor: sin seleccionar", MUTED, 10)
-        self.server_status.pack(anchor="w", pady=(5, 1))
-
-        self._label(shell, "RUTAS LOCALES (NO CAMBIAN LA RED DE WINDOWS)", ACCENT, 10, True).pack(anchor="w", pady=(16, 5))
-        self._label(shell, "HTTP CONNECT + SOCKS5 + WFP propios. Sin ProxiFyre; PROXY nativo exige driver firmado.", TEXT, 10).pack(anchor="w")
-        self._label(shell, "En APLICACIONES / FIREWALL: reglas por NOMBRE (chrome.exe), no por ruta.", MUTED, 10).pack(anchor="w", pady=(4, 4))
-
-        self._label(shell, "REGISTRO LOCAL (SIN CREDENCIALES NI URLS DE NAVEGACIÓN)", MUTED, 9, True).pack(anchor="w", pady=(14, 5))
-        self.logbox = tk.Text(shell, bg="#0a111d", fg=MUTED, insertbackground=TEXT,
-                              height=6, relief="flat", padx=11, pady=9,
-                              font=("Consolas", 10), state="disabled", wrap="word")
+        # Activity log stays hidden unless explicitly requested.
+        self.activity_frame = ui.card(shell, padx=14, pady=12, bg="#07101c")
+        activity_head = tk.Frame(self.activity_frame, bg=self.activity_frame["bg"])
+        activity_head.pack(fill="x", pady=(0, 6))
+        ui.label(activity_head, "Actividad segura", color=TEXT, size=10, bold=True).pack(side="left")
+        ui.label(
+            activity_head,
+            "Sin credenciales, tokens ni URLs de navegación",
+            color=MUTED,
+            size=8,
+        ).pack(side="right")
+        self.logbox = tk.Text(
+            self.activity_frame,
+            bg="#050c16",
+            fg=MUTED,
+            insertbackground=TEXT,
+            height=7,
+            relief="flat",
+            padx=10,
+            pady=8,
+            font=(ui.MONO, 9),
+            state="disabled",
+            wrap="word",
+        )
         self.logbox.pack(fill="both", expand=True)
-        self._log("Preparado. El estado 'Escuchando' NO demuestra salida a Internet.")
+        self._log("OneTunnel listo. Conecta y verifica la salida antes de activar políticas PROXY.")
+
+    def _toggle_advanced(self):
+        self._advanced_visible = not self._advanced_visible
+        if self._advanced_visible:
+            self.advanced_frame.pack(fill="x", pady=(14, 0), before=self.activity_frame)
+            self.advanced_btn.configure(text="OCULTAR AVANZADO")
+        else:
+            self.advanced_frame.pack_forget()
+            self.advanced_btn.configure(text="AVANZADO")
+
+    def _toggle_activity(self):
+        self._activity_visible = not self._activity_visible
+        if self._activity_visible:
+            self.activity_frame.pack(fill="both", expand=True, pady=(14, 0))
+            self.activity_btn.configure(text="OCULTAR ACTIVIDAD")
+        else:
+            self.activity_frame.pack_forget()
+            self.activity_btn.configure(text="ACTIVIDAD")
 
     def _log(self, message: str):
         self.events.put(("log", message, None))
@@ -304,13 +471,13 @@ class DesktopApp:
             self._premium_proxy_active = bool(browser_premium)
             self._egress_verified = False
             self.session += 1
-            self.btn.configure(text="DETENER PROXY", bg=WARN)
+            self.btn.configure(text="DESCONECTAR", bg=WARN)
             self.test_btn.configure(state="normal")
             self.copy_btn.configure(state="normal")
             self.location_combo.configure(state="disabled")
             self.scan_btn.configure(state="normal" if self.selector else "disabled")
             self.status.configure(text="Escuchando localmente · salida sin verificar", fg=WARN)
-            self.address.configure(text=f"HTTP http://{LOCAL_HOST}:{endpoints.http_port}    •    SOCKS5 {LOCAL_HOST}:{endpoints.socks5_port}")
+            self.address.configure(text="Pendiente de verificar · pulsa VERIFICAR SALIDA")
             self._log("Ninguna configuración de Windows/Wintun se ha cambiado.")
             if self.selector is not None:
                 self.scan_servers(refresh=True)
@@ -344,10 +511,10 @@ class DesktopApp:
         self.location_combo.current(0)
         self._on_location_changed()
         if session is None:
-            self.account_status.configure(text="Cuenta 1VPN: sesión local cerrada · Proxy independiente", fg=MUTED)
+            self.account_status.configure(text="Sin cuenta vinculada", fg=MUTED)
         elif session.source == "browser_web":
             self.account_status.configure(
-                text="Premium web: datos recibidos · salida por proxy aún sin verificar", fg=WARN
+                text="Premium vinculada · salida sin verificar", fg=WARN
             )
         else:
             self.account_status.configure(text=f"Cuenta 1VPN: {session.email} · {session.tier} (API móvil)", fg=ACCENT)
@@ -415,11 +582,11 @@ class DesktopApp:
         self.location_combo.configure(state="readonly")
         self.scan_btn.configure(state="disabled")
         self.server_status.configure(text="Servidor: sin seleccionar", fg=MUTED)
-        self.btn.configure(text="INICIAR PROXY", bg=ACCENT)
+        self.btn.configure(text="CONECTAR", bg=ACCENT)
         self.test_btn.configure(state="disabled")
         self.copy_btn.configure(state="disabled")
         self.status.configure(text="Desconectado", fg=MUTED)
-        self.address.configure(text="Dirección local: —")
+        self.address.configure(text="IP sin verificar")
 
     def close(self):
         # Teardown order: PROXY BFE filters -> ephemeral BLOCK filters ->
