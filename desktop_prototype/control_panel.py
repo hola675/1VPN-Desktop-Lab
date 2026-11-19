@@ -263,71 +263,66 @@ class TrafficControlPanel:
     def block(self):
         try:
             name = self._selected()
-            if name in DENIED_TARGETS:
-                raise ValueError("Este proceso esencial o portador VPN está protegido")
+            if name in FORBIDDEN_APP_NAMES:
+                raise ValueError("Este proceso crítico o portador VPN está protegido")
             paths = self._known_paths_for(name)
             if not paths:
                 raise RuntimeError(
                     f"No hay rutas ejecutables detectadas para {name}. "
-                    "Abre esa aplicación o utiliza Buscar aplicación .exe."
+                    "Abre la aplicación o usa Buscar aplicación .exe."
                 )
-            prompt = (
-                f"Bloquear conexiones salientes de {name} en {len(paths)} "
-                "ruta(s) detectada(s).\n\n"
-                "WFP necesita identificadores internos de cada ruta: cualquier copia "
-                "NUEVA en otra carpeta no quedará bloqueada automáticamente.\n\n"
-                "¿Activar filtros WFP temporales con permisos de administrador?"
-            )
-            if not messagebox.askyesno("Confirmar bloqueo por aplicación",
-                                       prompt, parent=self.win):
+            if not messagebox.askyesno(
+                "Activar bloqueo WFP integrado",
+                f"Bloquear salidas de {name} en {len(paths)} ruta(s) actualmente "
+                "detectadas.\n\n"
+                "OneTunnel instalará filtros WFP efímeros, SIN usar reglas "
+                "de Windows Firewall ni ProxiFyre.\n"
+                "Requiere administrador. Los filtros desaparecen al cerrar "
+                "OneTunnel: NO es un kill switch.\n\n"
+                "¿Activar bloqueo nativo?",
+                parent=self.win,
+            ):
                 return
-            existing = set(self.firewall.managed())
-            created: list[str] = []
+            previous = list(self.guard.managed().values())
+            self.guard.apply_paths([*previous, *paths])
             try:
-                for exe in paths:
-                    rule_id = self.guard.block(exe)
-                    if rule_id not in existing:
-                        created.append(exe)
                 self.store.upsert(AppPolicy(name, "BLOCK"))
             except Exception:
-                # Attempt to roll back only newly created own rules.
-                for exe in reversed(created):
-                    try:
-                        self.guard.unblock(exe)
-                    except Exception:
-                        pass
+                # Restore previous session atomically on persistence failure.
+                self.guard.apply_paths(previous)
                 raise
             self.refresh()
             self.info.configure(
-                text=f"BLOQUEAR aplicado a {len(paths)} ruta(s) de {name}; "
-                     "las copias futuras requieren actualizar el bloqueo. "
-                     "Los filtros se retiran al cerrar OneTunnel."
+                text=f"BLOQUEAR WFP activo para {name}: {len(paths)} ruta(s). "
+                     "Copias futuras en carpetas diferentes no están cubiertas."
             )
         except (OSError, ValueError, RuntimeError, PermissionError) as error:
-            messagebox.showerror("Firewall", str(error), parent=self.win)
+            messagebox.showerror("Bloqueo WFP", str(error), parent=self.win)
 
     def unblock(self):
         try:
             name = self._selected()
             paths = self._managed_paths(name)
             if not paths:
-                self.info.configure(text=f"{name}: no hay bloqueos propios aplicados.")
+                self.info.configure(text=f"{name}: sin filtros WFP activos.")
                 return
             if not messagebox.askyesno(
-                "Retirar bloqueos",
-                f"¿Retirar {len(paths)} filtro(s) WFP propios temporales "
-                f"para {name}?\nEsto no afecta reglas de otros productos.",
+                "Retirar filtros WFP",
+                f"¿Retirar los {len(paths)} filtros de {name}?\n"
+                "Se conservarán los filtros propios de otras aplicaciones.",
                 parent=self.win,
             ):
                 return
-            for exe in paths:
-                self.guard.unblock(exe)
-            # Do not leave a policy displayed as BLOCK when its rules were removed.
+            all_paths = list(self.guard.managed().values())
+            remove = {executable_key(p) for p in paths}
+            self.guard.apply_paths(
+                path for path in all_paths if executable_key(path) not in remove
+            )
             self.store.upsert(AppPolicy(name, "DIRECT"))
             self.refresh()
-            self.info.configure(text=f"Bloqueos retirados; {name} queda DIRECTO.")
+            self.info.configure(text=f"Filtros WFP retirados; {name} queda DIRECTO.")
         except (OSError, ValueError, RuntimeError, PermissionError) as error:
-            messagebox.showerror("Firewall", str(error), parent=self.win)
+            messagebox.showerror("Bloqueo WFP", str(error), parent=self.win)
 
     def delete_rule(self):
         try:
