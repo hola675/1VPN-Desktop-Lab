@@ -75,3 +75,9 @@ Aplicación seleccionada (ejemplo: firefox.exe)
 - https://github.com/wiresock/proxifyre/blob/main/docs/configuration.md
 - https://github.com/rookmoot/proxifier
 - https://learn.microsoft.com/en-us/windows-hardware/drivers/network/using-bind-or-connect-redirection
+
+## Estado de implementación v0.4.2-beta — 2026-11-19
+
+Se implementó una primera integración **por aplicación EXE** en desktop_prototype/running_apps.py, proxifyre_adapter.py y control_panel.py. La UI enumera procesos en ejecución; se guardan políticas por ruta completa, exporta configuración ProxiFyre para PROXY (TCP/IPv4) y exclusiones DIRECTO. BLOQUEAR usa el Windows Firewall preexistente mediante consentimiento. No hay driver incluido ni instalación automática: redirección transparente efectiva requiere ProxiFyre + WinpkFilter activos por separado. Requiere IP HTTPS verificada antes de generar perfil.
+
+Ver el procedimiento detallado y limitaciones en docs/PROXIFYRE-POR-EXE-V042.md. La decisión original de preservar Windows/Wintun y evitar cambios ocultos permanece.
