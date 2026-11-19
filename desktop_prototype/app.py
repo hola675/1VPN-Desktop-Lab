@@ -19,7 +19,7 @@ from server_catalog import COUNTRIES, ServerEndpoint, refresh_catalogue, snapsho
 from server_selector import AutoSelector
 from account_panel import AccountPanel
 from account_auth import AccountSession
-from access_proxy import AccessProxy
+from access_proxy import AccessProxy, open_via_access_proxy
 import ui_theme as ui
 
 BG = ui.BG
@@ -586,6 +586,19 @@ class DesktopApp:
             else:
                 self.selector = None
                 upstream = Upstream(self.inputs["host"].get().strip(), remote_port, username, password).validated()
+            if access_proxy is not None:
+                self.status.configure(
+                    text="Comprobando proxy de acceso de la red…",
+                    fg=WARN,
+                )
+                probe = open_via_access_proxy(
+                    access_proxy, upstream.host, upstream.port, timeout=6
+                )
+                probe.close()
+                self._log(
+                    f"Proxy de acceso validado para 1VPN · {access_proxy.host}:{access_proxy.port}."
+                )
+
             port = int(self.inputs["local_port"].get().strip())
             socks_port = int(self.inputs["socks_port"].get().strip())
             endpoints = self.engine.start(
