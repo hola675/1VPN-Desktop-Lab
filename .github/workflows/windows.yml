@@ -87,6 +87,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Control plane WFP no responde" }
           & native/wfp/build/Release/onetunnel-wfp-control.exe --self-test
           if ($LASTEXITCODE -ne 0) { throw "Falló self-test del control plane WFP" }
+          & native/wfp/build/Release/onetunnel-egress-probe.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "Probe de certificación no responde" }
+          & native/wfp/build/Release/onetunnel-egress-probe.exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Falló self-test del probe NO_PROXY" }
       - name: Compilar callout WFP kernel (UNSIGNED, CI solamente)
         shell: pwsh
         run: |
@@ -154,12 +158,12 @@ jobs:
         working-directory: desktop_prototype
         run: |
           python -m pip install pyinstaller==6.16.0
-          python -m PyInstaller --noconfirm --clean --windowed --onefile --name 1VPN-Desktop-Lab --add-binary '..\\native\\wfp\\build\\Release\\onetunnel-wfp-guard.exe;.' --add-binary '..\\native\\wfp\\build\\Release\\onetunnel-transparent-relay.exe;.' --add-binary '..\\native\\wfp\\build\\Release\\onetunnel-wfp-control.exe;.' app.py
+          python -m PyInstaller --noconfirm --clean --windowed --onefile --name 1VPN-Desktop-Lab --add-binary '..\\native\\wfp\\build\\Release\\onetunnel-wfp-guard.exe;.' --add-binary '..\\native\\wfp\\build\\Release\\onetunnel-transparent-relay.exe;.' --add-binary '..\\native\\wfp\\build\\Release\\onetunnel-wfp-control.exe;.' --add-binary '..\\native\\wfp\\build\\Release\\onetunnel-egress-probe.exe;.' app.py
           if ($LASTEXITCODE -ne 0) { throw "Error empaquetando componentes WFP" }
       - name: Guardar artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: OneTunnel-v0.5.3-signed-driver-alpha-win-x64
+          name: OneTunnel-v0.5.5-native-certification-alpha-win-x64
           path: desktop_prototype/dist/1VPN-Desktop-Lab.exe
           if-no-files-found: error
           retention-days: 14
