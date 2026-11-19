@@ -12,6 +12,7 @@ from firewall_rules import FirewallManager  # Exclusivamente retirada de bloqueo
 from native_wfp import NativeWfpGuard, FORBIDDEN_APP_NAMES
 from native_redirect import check_redirect_capability
 from native_proxy import NativeProxySession
+from native_certification import certify_transparent_proxy
 from driver_lifecycle import (
     DriverLifecycleError, SignedDriverLifecycle, bundled_driver_package_candidate,
 )
@@ -34,11 +35,13 @@ MODE_LABELS = {
 class TrafficControlPanel:
     def __init__(
         self, parent: tk.Tk, endpoint_getter, verified_getter=None,
-        native_guard=None, native_proxy=None, driver_lifecycle=None,
+        verified_ip_getter=None, native_guard=None, native_proxy=None,
+        driver_lifecycle=None,
     ):
         self.parent = parent
         self.endpoint_getter = endpoint_getter
         self.verified_getter = verified_getter or (lambda: False)
+        self.verified_ip_getter = verified_ip_getter or (lambda: None)
         self.store = PolicyStore()
         self.guard = native_guard or NativeWfpGuard()
         self.native_proxy = native_proxy or NativeProxySession()
@@ -98,6 +101,7 @@ class TrafficControlPanel:
         self._button(external, "ESTADO MOTOR", self.check_native_wfp).pack(side="left")
         self._button(external, "ACTIVAR PROXY WFP", self.activate_native_proxy).pack(side="left", padx=7)
         self._button(external, "DETENER PROXY WFP", self.stop_native_proxy).pack(side="left", padx=7)
+        self._button(external, "CERTIFICAR PROXY (LAB)", self.certify_native_proxy).pack(side="left", padx=7)
         self._button(external, "RETIRAR REGLAS HEREDADAS", self.cleanup_legacy_firewall).pack(side="left", padx=7)
 
         driverbar = tk.Frame(body, bg=BG)
@@ -598,6 +602,62 @@ class TrafficControlPanel:
             )
         except (OSError, PermissionError, RuntimeError, DriverLifecycleError) as error:
             messagebox.showerror("Detener PROXY WFP", str(error), parent=self.win)
+
+    def certify_native_proxy(self):
+        """Explicit one-shot proof that WFP transparently sends a NO_PROXY app through Premium."""
+        try:
+            endpoints = self.endpoint_getter()
+            if endpoints is None:
+                raise RuntimeError("Inicia primero OneTunnel Premium HTTP/SOCKS5.")
+            if not self.verified_getter():
+                raise RuntimeError(
+                    "Pulsa COMPROBAR SALIDA antes de certificar. Se necesita una IP Premium verificada."
+                )
+            expected_ip = self.verified_ip_getter()
+            if not expected_ip:
+                raise RuntimeError("No hay una IP Premium verificada disponible para comparar.")
+            if self.native_proxy.active():
+                raise RuntimeError(
+                    "Detén primero PROXY WFP normal. La certificación no altera sesiones activas."
+                )
+            if not self.driver_lifecycle.service_running():
+                raise DriverLifecycleError(
+                    "El callout WFP firmado no está RUNNING. Verifica/instala/inicia el motor."
+                )
+            if not messagebox.askyesno(
+                "Certificar PROXY WFP (laboratorio)",
+                "OneTunnel capturará temporalmente SOLO su probe nativo, que hará una "
+                "petición HTTPS a api.ipify.org mediante WinHTTP NO_PROXY.\n\n"
+                f"IP Premium esperada: {expected_ip}\n"
+                "No se instalará ni desinstalará el driver, no se tocarán políticas "
+                "guardadas y los filtros temporales se retirarán al finalizar.\n\n"
+                "¿Ejecutar la certificación?",
+                parent=self.win,
+            ):
+                return
+            result = certify_transparent_proxy(
+                native_proxy=self.native_proxy,
+                driver_lifecycle=self.driver_lifecycle,
+                socks5_port=endpoints.socks5_port,
+                expected_ip=expected_ip,
+            )
+            self.info.configure(
+                text=f"CERTIFICACIÓN PASS · WFP transparente · IP {result.observed_ip}. "
+                     "El probe no usó configuración proxy de aplicación."
+            )
+            messagebox.showinfo(
+                "Certificación WFP",
+                f"PASS\n\nIP Premium esperada: {result.expected_ip}\n"
+                f"IP observada por probe NO_PROXY: {result.observed_ip}\n\n"
+                "La redirección TCP transparente de OneTunnel quedó demostrada "
+                "para el probe de laboratorio. Esto NO certifica UDP/DNS/QUIC/IPv6 "
+                "ni constituye todavía un kill switch global.",
+                parent=self.win,
+            )
+        except (
+            OSError, ValueError, PermissionError, RuntimeError, DriverLifecycleError
+        ) as error:
+            messagebox.showerror("Certificación WFP", str(error), parent=self.win)
 
     def check_native_wfp(self):
         active = self.guard.managed()
