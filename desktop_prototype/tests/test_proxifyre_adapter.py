@@ -107,6 +107,14 @@ class TestPerExecutableRouting(unittest.TestCase):
         self.assertEqual(by_name["code.exe"], (30,))
         self.assertEqual([app.name for app in apps], ["chrome.exe", "code.exe"])
 
+    def test_native_windows_process_discovery_is_read_only(self):
+        if os.name != "nt":
+            self.skipTest("La API Win32 no existe fuera de Windows")
+        entries = list_running_apps()
+        self.assertIsInstance(entries, list)
+        self.assertTrue(all(app.executable.lower().endswith(".exe") for app in entries))
+        self.assertTrue(all(all(pid > 0 for pid in app.pids) for app in entries))
+
     def test_running_list_does_not_access_real_processes_with_source(self):
         # Injection of a source is only for tests: actual enumerator is native Win32.
         self.assertEqual(list_running_apps(lambda: ()), [])
