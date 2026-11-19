@@ -51,26 +51,32 @@ def build_proxifyre_draft(
         raise ValueError("Puerto SOCKS5 local inválido")
     blocked = {executable_key(p) for p in managed_firewall_programs}
     chosen: list[str] = []
+    direct: list[str] = []
     seen: set[str] = set()
     for policy in policies:
-        if policy.mode != "TRANSPARENT":
+        if policy.mode not in ("TRANSPARENT", "DIRECT"):
             continue
         exe = normalize_executable(policy.executable)
         name = Path(exe).name.casefold()
+        key = executable_key(exe)
+        if key in seen:
+            raise ValueError("Hay ejecutables duplicados")
+        seen.add(key)
+        if policy.mode == "DIRECT":
+            # Explicit process-level bypass. Also guards against a future
+            # catch-all rule in a separately managed ProxiFyre config.
+            direct.append(exe)
+            continue
         if name in DENIED_TARGETS:
             raise ValueError(
                 "No se permite redirigir el ejecutable del motor, ProxiFyre "
                 "o un proceso esencial de Windows"
             )
-        key = executable_key(exe)
         if key in blocked:
             raise ValueError(
-                "Una aplicación seleccionada tiene BLOQUEO saliente "
-                "gestionado; retira esa regla antes de configurar ProxiFyre"
+                "La aplicación tiene un BLOQUEO saliente gestionado; "
+                "retira esa regla antes de configurar PROXY"
             )
-        if key in seen:
-            raise ValueError("Hay ejecutables duplicados")
-        seen.add(key)
         chosen.append(exe)
         if len(chosen) > MAX_TARGET_APPS:
             raise ValueError("Demasiadas aplicaciones seleccionadas para este laboratorio")
@@ -96,7 +102,9 @@ def build_proxifyre_draft(
             # ProxiFyre blocks unsupported address families for matched traffic.
             "supportedAddressFamilies": ["IPv4"],
         }],
-        "excludes": list(EXCLUDED_CARRIERS),
+        # ProxiFyre exclusion precedence: explicit DIRECT apps outrank PROXY.
+        # Never include a broad catch-all rule here.
+        "excludes": list(EXCLUDED_CARRIERS) + direct,
         # DNS Direct can leak queries: never claim leak protection.
         "dns": {"mode": "Direct"},
     }
@@ -110,6 +118,8 @@ def describe_proxifyre_draft(config: dict) -> str:
         "BORRADOR PROXIFYRE — NO ACTIVADO",
         f"Aplicaciones seleccionadas: {len(targets)}",
         *(f"  - {Path(app).name}" for app in targets),
+        f"Exclusiones DIRECTO explícitas: {len(config['excludes']) - len(EXCLUDED_CARRIERS)}",
+        *(f"  > {Path(app).name}" for app in config["excludes"][len(EXCLUDED_CARRIERS):]),
         f"SOCKS5 local: {rule['socks5ProxyEndpoint']}",
         "Protocolo: TCP CONNECT; IPv4 solamente",
         "DNS: DIRECTO (riesgo de fuga DNS)",
