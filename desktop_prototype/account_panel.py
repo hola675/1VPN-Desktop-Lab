@@ -5,9 +5,11 @@ import queue
 import re
 import threading
 import tkinter as tk
+import webbrowser
 from datetime import datetime
 
 from account_auth import API_DOMAINS, API_PATH, AccountClient, AccountSession, AccountAuthError
+from premium_bridge import PremiumBrowserBridge
 
 BG, PANEL, TEXT, MUTED, ACCENT, WARN = "#0d1524", "#142238", "#ecf4ff", "#a9bdd9", "#4bc7e6", "#f4b26c"
 
@@ -41,6 +43,8 @@ class AccountPanel:
         self.events = queue.Queue()
         self.pending = False
         self.session: AccountSession | None = None
+        self.browser_bridge: PremiumBrowserBridge | None = None
+        self.bridge_window: tk.Toplevel | None = None
 
         content = tk.Frame(self.win, bg=BG, padx=18, pady=12)
         content.pack(fill="both", expand=True)
@@ -65,6 +69,9 @@ class AccountPanel:
         self.button.pack(side="left")
         tk.Button(btns, text="CERRAR SESIÓN", command=self.logout, bg=PANEL,
                   fg=TEXT, relief="flat", font=("Segoe UI", 10), padx=10, pady=8).pack(side="left", padx=8)
+        tk.Button(btns, text="PREMIUM WEB (BETA)", command=self.open_browser_bridge, bg=PANEL,
+                  fg=ACCENT, relief="flat", font=("Segoe UI", 9, "bold"),
+                  padx=7, pady=8).pack(side="left")
         self.status = tk.Label(content, text="Cuenta sin iniciar sesión", bg=BG, fg=MUTED,
                                font=("Segoe UI", 10), anchor="w", justify="left")
         self.status.pack(fill="x", anchor="w")
@@ -244,7 +251,17 @@ class AccountPanel:
                     continue
                 self.pending = False
                 self.button.configure(state="normal")
-                if kind == "success":
+                if kind == "browser_session":
+                    self.session = data
+                    self.password.delete(0, "end")
+                    self.two_factor.delete(0, "end")
+                    self.status.configure(
+                        text="Premium recibido desde navegador. Inicia el proxy y verifica salida HTTPS.",
+                        fg=ACCENT,
+                    )
+                    self.on_session(data)
+                    self._cancel_browser_bridge()
+                elif kind == "success":
                     self.session = data
                     self.password.delete(0, "end")
                     self.two_factor.delete(0, "end")
@@ -260,7 +277,75 @@ class AccountPanel:
         if self.win.winfo_exists():
             self.win.after(120, self.poll)
 
+
+    def _cancel_browser_bridge(self):
+        bridge, window = self.browser_bridge, self.bridge_window
+        self.browser_bridge = None
+        self.bridge_window = None
+        if bridge is not None:
+            bridge.stop()
+        if window is not None:
+            try:
+                if window.winfo_exists():
+                    window.destroy()
+            except tk.TclError:
+                pass
+
+    def open_browser_bridge(self):
+        """Start a user-approved, one-time local transfer from official website.
+
+        Does not inspect browser storage, cookies or another extension.
+        """
+        if self.browser_bridge is not None:
+            if self.bridge_window is not None and self.bridge_window.winfo_exists():
+                self.bridge_window.lift()
+            return
+        bridge = PremiumBrowserBridge()
+        try:
+            details = bridge.start(lambda session: self.events.put(("browser_session", session)))
+        except OSError:
+            self.status.configure(text="No se pudo abrir el puerto local de vinculación.", fg=WARN)
+            return
+        self.browser_bridge = bridge
+        popup = tk.Toplevel(self.win)
+        self.bridge_window = popup
+        popup.title("OneTunnel · Vincular cuenta Premium con navegador")
+        popup.geometry("670x330")
+        popup.minsize(620, 300)
+        popup.configure(bg=BG)
+        popup.protocol("WM_DELETE_WINDOW", self._cancel_browser_bridge)
+        panel = tk.Frame(popup, bg=BG, padx=22, pady=15)
+        panel.pack(fill="both", expand=True)
+        tk.Label(panel, text="VINCULACIÓN PREMIUM CON CONSENTIMIENTO", fg=ACCENT,
+                 bg=BG, font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 10))
+        instructions = (
+            "1. Instala la extensión complementaria local desde browser_companion/.\n"
+            "2. Abre tu cuenta en https://1vpn.org/account/ en ese mismo navegador.\n"
+            "3. En la extensión complementaria, introduce puerto y código temporal.\n"
+            "4. Pulsa «Vincular» en la extensión. Caduca en 5 minutos.\n"
+            "Nota: no lee automáticamente la sesión privada de la extensión oficial."
+        )
+        tk.Label(panel, text=instructions, fg=TEXT, bg=BG, anchor="w",
+                 justify="left", font=("Segoe UI", 9)).pack(anchor="w")
+        tk.Label(panel, text=f"Puerto local: {details.port}", fg=ACCENT,
+                 bg=BG, font=("Consolas", 12, "bold")).pack(anchor="w", pady=(10, 2))
+        tk.Label(panel, text="Código temporal: " + details.code, fg=TEXT,
+                 bg=BG, font=("Consolas", 10)).pack(anchor="w", pady=(0, 10))
+        bar = tk.Frame(panel, bg=BG)
+        bar.pack(fill="x")
+        def copy_details():
+            popup.clipboard_clear()
+            popup.clipboard_append(f"{details.port} {details.code}")
+        tk.Button(bar, text="COPIAR PUERTO Y CÓDIGO", command=copy_details,
+                  bg=ACCENT, fg=BG, relief="flat", padx=9, pady=6).pack(side="left")
+        tk.Button(bar, text="ABRIR CUENTA OFICIAL", command=lambda: webbrowser.open("https://1vpn.org/account/"),
+                  bg=PANEL, fg=TEXT, relief="flat", padx=9, pady=6).pack(side="left", padx=8)
+        tk.Button(bar, text="CANCELAR", command=self._cancel_browser_bridge,
+                  bg=PANEL, fg=WARN, relief="flat", padx=9, pady=6).pack(side="left")
+        self.status.configure(text="Vinculación Premium esperando consentimiento del navegador.", fg=WARN)
+
     def logout(self):
+        self._cancel_browser_bridge()
         self.session = None
         self.password.delete(0, "end")
         self.two_factor.delete(0, "end")
@@ -268,6 +353,7 @@ class AccountPanel:
         self.status.configure(text="Sesión local cerrada. No se ha modificado el proxy.", fg=MUTED)
 
     def close(self):
+        self._cancel_browser_bridge()
         self.password.delete(0, "end")
         self.two_factor.delete(0, "end")
         self.win.destroy()
