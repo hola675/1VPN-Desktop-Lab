@@ -205,6 +205,14 @@ def verify_package(
     signer, verified_catalog = native_verifier(inf)
     if verified_catalog.name.casefold() != CAT_NAME.casefold():
         raise DriverLifecycleError("El catálogo verificado no es el esperado por OneTunnel")
+    try:
+        same_catalog = verified_catalog.resolve() == cat.resolve()
+    except OSError:
+        same_catalog = False
+    if not same_catalog:
+        raise DriverLifecycleError(
+            "Windows verificó un catálogo fuera del paquete seleccionado; instalación cancelada"
+        )
     # SetupVerifyInfFile authenticates INF+catalog. DiInstallDriver remains the
     # final authority that validates every package member hash before staging.
     return DriverPackageVerification(
@@ -399,7 +407,21 @@ class SignedDriverLifecycle:
         if reboot:
             return DriverInstallResult(True, False, True)
         service = self.service_factory()
-        service.start()
+        try:
+            service.start()
+        except Exception as start_error:
+            # Avoid a half-configured package if demand-start fails immediately.
+            try:
+                self.uninstaller(verification.inf_path)
+            except Exception as rollback_error:
+                raise DriverLifecycleError(
+                    "El paquete se instaló pero el driver no arrancó y la reversión "
+                    f"también falló ({type(rollback_error).__name__})."
+                ) from start_error
+            raise DriverLifecycleError(
+                "El paquete se instaló pero el driver no arrancó; OneTunnel revirtió "
+                "la instalación."
+            ) from start_error
         return DriverInstallResult(True, True, False)
 
     def service_state(self) -> int:
