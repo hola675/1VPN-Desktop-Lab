@@ -27,7 +27,7 @@ falsificar cabeceras, ni sortear respuestas HTTP 403.
    https://1vpn.org/account/ con ese mismo navegador.
 4. En 1VPN Desktop Lab, abre INICIAR SESIÓN 1VPN (EMAIL) y pulsa
    PREMIUM WEB (BETA). El escritorio muestra puerto local aleatorio y
-   código de un único uso válido durante 5 minutos.
+   código de un único uso válido durante 5 minutos. Usa **COPIAR PUERTO** y **COPIAR CÓDIGO** por separado (o selecciona cada campo manualmente); no copies los dos juntos.
 5. Con la pestaña oficial /account/ activa, pulsa la extensión auxiliar,
    escribe puerto y código y pulsa VINCULAR CON CONSENTIMIENTO.
 6. Si la web devuelve los campos necesarios, la sesión pasa a la
