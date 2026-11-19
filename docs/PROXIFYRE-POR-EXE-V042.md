@@ -25,11 +25,12 @@
 1. Activa OneTunnel Premium y pulsa **COMPROBAR SALIDA** hasta obtener IP pública verificada. Un puerto local abierto no es suficiente.
 2. En **APLICACIONES / FIREWALL**, elige una aplicación de prueba .exe en ejecución, guarda PROXY; elige otra como DIRECTO. No uses programas críticos del sistema.
 3. Prepara y guarda el borrador ProxiFyre; comprueba cada ruta y puerto.
-4. Instala por separado ProxiFyre desde https://github.com/wiresock/proxifyre/releases/latest . Para Windows x64 usa el instalador x64 y verifica su SHA-256 publicada. El instalador oficial gestiona Windows Packet Filter y dependencias cuando corresponda. Requiere permisos administrativos y puede afectar al stack de red: prueba primero en máquina virtual o con plan de recuperación.
-5. En la GUI oficial ProxiFyre, crea reglas de enrutamiento por los ejecutables seleccionados; configura SOCKS5 127.0.0.1:1080, transporte TCP, protocolo TCP, familia IPv4 y excepciones del borrador. **No reemplaces directamente** su app-config.json, que podría tener reglas de otras aplicaciones.
-6. Pulsa **Validate** y después **Apply & Restart** en ProxiFyre. Confirma estado Running y logs reales de esa aplicación.
-7. Prueba el proceso elegido sin configurar variables HTTP_PROXY ni pasarle el parámetro --proxy: verifica su IP de salida y compara con el acceso directo. Validar curl usando --proxy solo prueba el listener, no la redirección transparente.
-8. Prueba el proceso DIRECTO y el proceso BLOQUEAR; retira reglas de prueba después. Al detener OneTunnel o ProxiFyre, comprueba específicamente si existe fuga directa; no hay kill switch certificado.
+4. Antes de instalar ProxiFyre, detén temporalmente la captura por aplicación de Proxifier u otros proxificadores: dos motores que interceptan simultáneamente pueden entrar en conflicto y crear bucles. No deshabilites tu firewall predeterminado.
+5. Instala por separado ProxiFyre desde https://github.com/wiresock/proxifyre/releases/latest . Para Windows x64 usa el instalador x64 y verifica su SHA-256 publicada. El instalador oficial gestiona Windows Packet Filter y dependencias cuando corresponda. Requiere permisos administrativos y puede afectar al stack de red: prueba primero en máquina virtual o con plan de recuperación.
+6. En la GUI oficial ProxiFyre, crea reglas de enrutamiento por los ejecutables seleccionados; configura SOCKS5 127.0.0.1:1080, transporte TCP, protocolo TCP, familia IPv4 y excepciones del borrador. **No reemplaces directamente** su app-config.json, que podría tener reglas de otras aplicaciones.
+7. Pulsa **Validate** y después **Apply & Restart** en ProxiFyre. Confirma estado Running y logs reales de esa aplicación.
+8. Prueba el proceso elegido sin configurar variables HTTP_PROXY ni pasarle el parámetro --proxy: verifica su IP de salida y compara con el acceso directo. Validar curl usando --proxy solo prueba el listener, no la redirección transparente.
+9. Prueba el proceso DIRECTO y el proceso BLOQUEAR; retira reglas de prueba después. Al detener OneTunnel o ProxiFyre, comprueba específicamente si existe fuga directa; no hay kill switch certificado.
 
 ## Limitaciones
 
