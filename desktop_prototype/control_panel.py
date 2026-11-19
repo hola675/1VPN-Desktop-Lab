@@ -1,6 +1,7 @@
 """Panel integrado de aplicaciones y reglas firewall (sin captura transparente)."""
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 import subprocess
@@ -128,31 +129,34 @@ class TrafficControlPanel:
             messagebox.showerror("Políticas", str(e), parent=self.win)
 
     def refresh_running(self):
-        """Read-only list of accessible running executables; never infer by hostname."""
+        """Refresh EXE/PID data without losing the selected row or editing inputs."""
         if not hasattr(self, "running_tree"):
             return
         try:
-            selected = self.running_tree.selection()
-            old_path = self._running_index.get(selected[0], "") if selected else ""
-            self.running_tree.delete(*self.running_tree.get_children())
-            self._running_index = {}
-            modes = {executable_key(rule.executable): rule.mode for rule in self.store.load()}
-            for app in list_running_apps():
-                iid = self.running_tree.insert(
-                    "", "end",
-                    values=(
-                        app.name,
-                        ", ".join(str(pid) for pid in app.pids[:7])
-                        + (f" (+{len(app.pids) - 7})" if len(app.pids) > 7 else ""),
-                        MODE_LABELS[modes[executable_key(app.executable)]]
-                        if executable_key(app.executable) in modes
-                        else "SIN REGLA (directo)",
-                        app.executable,
-                    ),
+            modes = {executable_key(p.executable): p.mode for p in self.store.load()}
+            new_index: dict[str, str] = {}
+            apps = list_running_apps()
+            for index, app in enumerate(apps):
+                key = executable_key(app.executable)
+                iid = "exe-" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
+                pids = ", ".join(str(pid) for pid in app.pids[:7])
+                if len(app.pids) > 7:
+                    pids += f" (+{len(app.pids) - 7})"
+                values = (
+                    app.name, pids,
+                    MODE_LABELS[modes[key]] if key in modes else "SIN REGLA (directo)",
+                    app.executable,
                 )
-                self._running_index[iid] = app.executable
-                if old_path and executable_key(old_path) == executable_key(app.executable):
-                    self.running_tree.selection_set(iid)
+                if self.running_tree.exists(iid):
+                    self.running_tree.item(iid, values=values)
+                else:
+                    self.running_tree.insert("", "end", iid=iid, values=values)
+                self.running_tree.move(iid, "", index)
+                new_index[iid] = app.executable
+            for iid in self.running_tree.get_children():
+                if iid not in new_index:
+                    self.running_tree.delete(iid)
+            self._running_index = new_index
         except (OSError, ValueError, RuntimeError) as error:
             self.info.configure(text=f"No se pudo actualizar procesos: {type(error).__name__}")
 
