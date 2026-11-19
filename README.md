@@ -1,3 +1,10 @@
+
+## PROXY transparente nativo — fase relay v0.5.1
+
+El ejecutable incluye ahora dos componentes propios: `onetunnel-wfp-guard.exe` para BLOQUEAR mediante WFP y `onetunnel-transparent-relay.exe`, que será el relay del futuro PROXY transparente. El relay acepta únicamente conexiones que lleven contexto/records válidos de WFP, recupera el destino original y genera SOCKS5 CONNECT hacia `127.0.0.1:1080`. Una conexión local normal se rechaza, por lo que no se convierte en un proxy abierto.
+
+**Aún no activa PROXY transparente:** falta el callout kernel firmado en `ALE_CONNECT_REDIRECT` que redirija las conexiones seleccionadas al relay y adjunte el contexto original. Hasta que ese driver exista y se certifique, la UI debe mostrar PROXY como PENDIENTE. El relay se compila, ejecuta self-test y se empaqueta para avanzar el contrato y el dataplane de usuario sin instalar un driver experimental.
+
 > **Arquitectura nativa v0.5.0-alpha (19 de noviembre de 2026):** se inició la sustitución de ProxiFyre y Windows Defender Firewall por un motor OneTunnel propio mediante la API Windows Filtering Platform (WFP). **BLOQUEAR** utiliza filtros WFP temporales administrados por nuestro ejecutable C++; **DIRECTO** mantiene la salida normal. **PROXY transparente sigue pendiente** de implementar un controlador WFP firmado y un relay que conserve el destino original. No es una VPN completa del sistema ni un kill switch. Las guías antiguas ProxiFyre quedan como referencia histórica; no son el camino de implementación vigente. Consulta [ADR-012 Motor WFP nativo](docs/ADR-012-MOTOR-NATIVO-WFP.md).
 
 # 1VPN Desktop Lab
