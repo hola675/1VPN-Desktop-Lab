@@ -6,6 +6,7 @@ salir a Internet. Si está activada y falla, OneTunnel NO hace fallback directo.
 from __future__ import annotations
 
 import base64
+import ipaddress
 import re
 import socket
 from dataclasses import dataclass, field
@@ -26,7 +27,12 @@ class AccessProxy:
         host = self.host.strip()
         if not host or any(c in host for c in "\r\n /\\"):
             raise ValueError("Host del proxy de red inválido")
-        if not (HOST_RE.fullmatch(host) or IPV4_RE.fullmatch(host)):
+        try:
+            ipaddress.ip_address(host)
+            valid_host = True
+        except ValueError:
+            valid_host = bool(HOST_RE.fullmatch(host) and ".." not in host)
+        if not valid_host:
             raise ValueError("Host del proxy de red inválido")
         if not isinstance(self.port, int) or not 1 <= self.port <= 65535:
             raise ValueError("Puerto del proxy de red inválido")
