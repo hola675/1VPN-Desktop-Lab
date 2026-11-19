@@ -47,6 +47,17 @@ class NativeArchitectureGuardrails(unittest.TestCase):
         self.assertLess(block, driver)
         self.assertLess(driver, transport)
 
+    def test_release_build_embeds_driver_only_after_windows_signature_verification(self):
+        build = (ROOT / "Compilar-EXE.ps1").read_text(encoding="utf-8")
+        self.assertIn("ONETUNNEL_SIGNED_DRIVER_DIR", build)
+        self.assertIn("from driver_lifecycle import verify_package", build)
+        verify = build.index("verify_package")
+        embed = build.index("'--add-data', \"$Inf;driver_package\"")
+        self.assertLess(verify, embed)
+        self.assertIn("if ($SignedDriverDirectory)", build)
+        # The unsigned CI output directory must never be implicitly embedded.
+        self.assertNotIn("native/driver/package;driver_package", build.replace("\\", "/"))
+
     def test_native_sources_are_first_party_targets(self):
         cmake = (ROOT.parent / "native" / "wfp" / "CMakeLists.txt").read_text(encoding="utf-8")
         self.assertIn("onetunnel-wfp-guard", cmake)
