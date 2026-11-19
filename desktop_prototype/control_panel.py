@@ -29,9 +29,10 @@ MODE_LABELS = {
 
 
 class TrafficControlPanel:
-    def __init__(self, parent: tk.Tk, endpoint_getter):
+    def __init__(self, parent: tk.Tk, endpoint_getter, verified_getter=None):
         self.parent = parent
         self.endpoint_getter = endpoint_getter
+        self.verified_getter = verified_getter or (lambda: False)
         self.store = PolicyStore()
         self.firewall = FirewallManager()
         self.win = tk.Toplevel(parent)
@@ -56,7 +57,7 @@ class TrafficControlPanel:
         body = tk.Frame(self.win, bg=BG, padx=22, pady=18)
         body.pack(fill="both", expand=True)
         self._label(body, "APLICACIONES EN EJECUCIÓN / POLÍTICAS POR .EXE", ACCENT, 15).pack(anchor="w")
-        self._label(body, "ProxiFyre: captura externa opcional. Este panel solo prepara borradores; BLOQUEAR requiere administrador.",
+        self._label(body, "PROXY: ProxiFyre + Windows Packet Filter externos · DIRECTO: excluido · BLOQUEAR: Firewall (admin)",
                     "#ffcc87").pack(anchor="w", pady=(5, 14))
         row = tk.Frame(body, bg=BG)
         row.pack(fill="x")
@@ -136,7 +137,6 @@ class TrafficControlPanel:
             self.running_tree.delete(*self.running_tree.get_children())
             self._running_index = {}
             modes = {executable_key(rule.executable): rule.mode for rule in self.store.load()}
-            blocked = self.firewall.managed()
             for app in list_running_apps():
                 iid = self.running_tree.insert(
                     "", "end",
@@ -255,9 +255,11 @@ class TrafficControlPanel:
         try:
             endpoints = self.endpoint_getter()
             if endpoints is None:
+                raise RuntimeError("Primero inicia el proxy HTTP/SOCKS5 de OneTunnel")
+            if not self.verified_getter():
                 raise RuntimeError(
-                    "Primero inicia OneTunnel y verifica la salida HTTPS. "
-                    "El borrador necesita el puerto SOCKS5 local activo."
+                    "Pulsa COMPROBAR SALIDA en la ventana principal y verifica la IP HTTPS "
+                    "antes de preparar un perfil de captura por aplicación."
                 )
             profile = build_proxifyre_draft(
                 self.store.load(), endpoints.socks5_port,
