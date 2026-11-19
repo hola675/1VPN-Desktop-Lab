@@ -1,3 +1,12 @@
+## v0.5.1-native-relay-alpha — dataplane transparente de usuario (2026-11-19)
+
+- Añadido `onetunnel-transparent-relay.exe` propio, loopback-only: consume contexto y redirect records WFP, preserva tracking y convierte destino IPv4/IPv6 a SOCKS5 CONNECT sobre el listener OneTunnel 127.0.0.1:1080.
+- El relay falla cerrado ante sockets que no provengan del futuro callout WFP; no es un proxy local genérico.
+- ABI versionada `OneTunnelRedirectContext` y self-test C++ offline para serialización de destino/SOCKS5.
+- Capacidad separada en UI: relay incluido/self-test vs callout driver firmado pendiente. PROXY no se marca como disponible solo por empaquetar el relay.
+- CI compila, ejecuta self-test y empaqueta guard + relay. Artefacto renombrado a v0.5-native-alpha.
+- **Pendiente:** callout kernel WFP firmado en ALE_CONNECT_REDIRECT V4/V6 y control plane. Sin ese componente no existe captura transparente real.
+
 ## v0.5.0-native-alpha — motor WFP propio (2026-11-19)
 
 - Cambio arquitectónico autorizado por el usuario: no depender de ProxiFyre ni de reglas Windows Defender Firewall para funcionalidades nuevas.
