@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DRIVER = ROOT / "native" / "driver" / "onetunnel_redirect.cpp"
 CONTRACT = ROOT / "native" / "wfp" / "redirect_contract.h"
 CONTROL = ROOT / "native" / "wfp" / "wfp_control.cpp"
+INF = ROOT / "native" / "driver" / "OneTunnelRedirect.inx"
 
 
 class DriverSourceGuardrails(unittest.TestCase):
@@ -19,6 +20,7 @@ class DriverSourceGuardrails(unittest.TestCase):
         cls.source = DRIVER.read_text(encoding="utf-8")
         cls.contract = CONTRACT.read_text(encoding="utf-8")
         cls.control = CONTROL.read_text(encoding="utf-8")
+        cls.inf = INF.read_text(encoding="utf-8")
 
     def test_redirect_context_binary_sizes_match_relay(self):
         self.assertEqual(struct.calcsize("<IHHHH16s"), 28)
@@ -88,6 +90,13 @@ class DriverSourceGuardrails(unittest.TestCase):
             "ProxiFyre",
         ):
             self.assertNotIn(forbidden, self.control)
+
+    def test_driver_package_is_demand_start_not_boot_start(self):
+        self.assertIn("Class       = WFPCALLOUTS", self.inf)
+        self.assertIn("StartType     = 3", self.inf)
+        self.assertNotIn("StartType     = 0", self.inf)
+        self.assertIn("Dependencies = BFE", self.inf)
+        self.assertIn("PnpLockdown = 1", self.inf)
 
     def test_ci_never_loads_or_installs_driver(self):
         workflow = (ROOT / ".github" / "workflows" / "windows.yml").read_text(encoding="utf-8")
