@@ -1,3 +1,15 @@
+## v0.6-premium-ui-alpha — simple por fuera, completa por dentro (2026-11-19)
+
+- Nuevo sistema visual compartido `ui_theme.py`: tarjetas, botones, badges, tablas, tabs y tokens.
+- Inicio convertido en dashboard: Conexión, Ubicación, Cuenta, Salida, Servidor y Motor.
+- Configuración técnica movida a AVANZADO; registro seguro a ACTIVIDAD, ambos ocultos inicialmente.
+- IP pública verificada se refleja directamente en SALIDA.
+- Aplicaciones reorganizadas en pestañas Aplicaciones / Motor WFP / Diagnóstico.
+- Flujo diario por .exe prioriza DIRECTO / PROXY VPN / BLOQUEAR.
+- Cuenta reorganizada: Premium web primero; Email/2FA y diagnóstico secundarios.
+- CI abre y valida las tres ventanas premium además del build WFP/EXE.
+- Sin cambios en el contrato de seguridad del driver firmado, WFP, certificación o Premium.
+
 ## v0.5.5-native-certification-alpha — prueba transparente NO_PROXY (2026-11-19)
 
 - Nuevo `onetunnel-egress-probe.exe` C++ propio: HTTPS a api.ipify.org con WinHTTP `WINHTTP_ACCESS_TYPE_NO_PROXY`.

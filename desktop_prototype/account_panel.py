@@ -5,13 +5,17 @@ import queue
 import re
 import threading
 import tkinter as tk
+from tkinter import ttk
 import webbrowser
 from datetime import datetime
 
 from account_auth import API_DOMAINS, API_PATH, AccountClient, AccountSession, AccountAuthError
 from premium_bridge import PremiumBrowserBridge
+import ui_theme as ui
 
-BG, PANEL, TEXT, MUTED, ACCENT, WARN = "#0d1524", "#142238", "#ecf4ff", "#a9bdd9", "#4bc7e6", "#f4b26c"
+BG, PANEL, TEXT, MUTED, ACCENT, WARN = (
+    ui.BG, ui.SURFACE, ui.TEXT, ui.MUTED, ui.ACCENT, ui.WARN
+)
 
 
 class AccountPanel:
@@ -35,10 +39,13 @@ class AccountPanel:
         self.on_session = on_session
         self.client = client or AccountClient(on_event=self._queue_diagnostic)
         self.win = tk.Toplevel(parent)
-        self.win.title("1VPN Desktop Lab — Autenticación de cuenta")
-        self.win.geometry("640x540")
-        self.win.minsize(570, 500)
-        self.win.configure(bg=BG)
+        ui.apply_root(
+            self.win,
+            title="OneTunnel — Cuenta Premium",
+            geometry="720x620",
+            minsize=(640, 560),
+        )
+        ui.configure_ttk(self.win)
         self.win.protocol("WM_DELETE_WINDOW", self.close)
         self.events = queue.Queue()
         self.pending = False
@@ -46,58 +53,153 @@ class AccountPanel:
         self.browser_bridge: PremiumBrowserBridge | None = None
         self.bridge_window: tk.Toplevel | None = None
 
-        content = tk.Frame(self.win, bg=BG, padx=18, pady=12)
+        content = tk.Frame(self.win, bg=BG, padx=24, pady=20)
         content.pack(fill="both", expand=True)
-        tk.Label(content, text="CUENTA 1VPN — EMAIL Y CONTRASEÑA", fg=ACCENT, bg=BG,
-                 font=("Segoe UI", 13, "bold")).pack(anchor="w")
-        tk.Label(content, text="Esta autenticación es de tu cuenta, NO del proxy HTTPS local.",
-                 fg=MUTED, bg=BG, font=("Segoe UI", 10)).pack(anchor="w", pady=(4, 10))
-        for caption, key, mask in (
-            ("Correo electrónico de 1VPN", "email", ""),
-            ("Contraseña de la cuenta", "password", "*"),
-            ("Código 2FA (solo si 1VPN lo solicita)", "two_factor", "*"),
-        ):
-            tk.Label(content, text=caption, bg=BG, fg=TEXT, font=("Segoe UI", 10)).pack(anchor="w", pady=(5, 1))
-            entry = tk.Entry(content, bg=PANEL, fg=TEXT, relief="flat", insertbackground=TEXT,
-                             font=("Segoe UI", 11), show=mask)
-            entry.pack(fill="x", ipady=6)
-            setattr(self, key, entry)
-        btns = tk.Frame(content, bg=BG)
-        btns.pack(fill="x", pady=(6, 4))
-        self.button = tk.Button(btns, text="INICIAR SESIÓN", command=self.login, bg=ACCENT,
-                                fg=BG, relief="flat", font=("Segoe UI", 10, "bold"), padx=13, pady=8)
+
+        header = tk.Frame(content, bg=BG)
+        header.pack(fill="x", pady=(0, 14))
+        title = tk.Frame(header, bg=BG)
+        title.pack(side="left")
+        ui.label(title, "Cuenta", color=TEXT, size=20, bold=True).pack(anchor="w")
+        ui.label(
+            title,
+            "Vincula Premium de forma segura. Las credenciales nunca se guardan en disco.",
+            color=MUTED,
+            size=9,
+        ).pack(anchor="w", pady=(3, 0))
+        ui.badge(header, "1VPN", tone="accent").pack(side="right", pady=(6, 0))
+
+        self.status = ui.label(
+            content,
+            "Sin cuenta vinculada",
+            color=MUTED,
+            size=10,
+            bold=True,
+        )
+        self.status.pack(fill="x", pady=(0, 12))
+
+        notebook = ttk.Notebook(content, style="OneTunnel.TNotebook")
+        notebook.pack(fill="both", expand=True)
+
+        web_tab = tk.Frame(notebook, bg=BG, padx=2, pady=2)
+        login_tab = tk.Frame(notebook, bg=BG, padx=2, pady=2)
+        diag_tab = tk.Frame(notebook, bg=BG, padx=2, pady=2)
+        notebook.add(web_tab, text="  Premium web  ")
+        notebook.add(login_tab, text="  Email / 2FA  ")
+        notebook.add(diag_tab, text="  Diagnóstico  ")
+
+        # Preferred flow: browser consent bridge.
+        web_card = ui.card(web_tab, padx=20, pady=18)
+        web_card.pack(fill="x", pady=(14, 10))
+        ui.label(web_card, "Vincular Premium desde el navegador", color=TEXT, size=13, bold=True).pack(anchor="w")
+        ui.label(
+            web_card,
+            "Usa tu sesión ya abierta en 1vpn.org. OneTunnel recibe solo los datos "
+            "necesarios mediante un código temporal y consentimiento explícito.",
+            color=MUTED,
+            size=9,
+            wraplength=610,
+        ).pack(anchor="w", pady=(5, 14))
+        self.browser_button = ui.button(
+            web_card,
+            "VINCULAR PREMIUM WEB",
+            self.open_browser_bridge,
+            variant="primary",
+        )
+        self.browser_button.pack(anchor="w")
+
+        security_card = ui.card(web_tab, padx=18, pady=15, bg=ui.SURFACE)
+        security_card.pack(fill="x", pady=(0, 12))
+        ui.label(security_card, "Privacidad", color=TEXT, size=10, bold=True).pack(anchor="w")
+        ui.label(
+            security_card,
+            "No leemos cookies, almacenamiento privado de extensiones ni contraseñas del navegador. "
+            "El código de vinculación caduca y se copia separado del puerto.",
+            color=MUTED,
+            size=9,
+            wraplength=610,
+        ).pack(anchor="w", pady=(4, 0))
+
+        # Fallback flow: official account API.
+        login_card = ui.card(login_tab, padx=20, pady=18)
+        login_card.pack(fill="x", pady=(14, 10))
+        ui.label(login_card, "Inicio de sesión clásico", color=TEXT, size=13, bold=True).pack(anchor="w")
+        ui.label(
+            login_card,
+            "Úsalo solo si necesitas probar la API de cuenta. Premium web es el flujo recomendado.",
+            color=MUTED,
+            size=9,
+        ).pack(anchor="w", pady=(4, 12))
+
+        fields = (
+            ("Correo electrónico", "email", ""),
+            ("Contraseña", "password", "*"),
+            ("Código 2FA (si se solicita)", "two_factor", "*"),
+        )
+        for caption, key, mask in fields:
+            ui.label(login_card, caption, color=MUTED, size=8, bold=True).pack(anchor="w", pady=(7, 3))
+            field = ui.entry(login_card, secret=bool(mask))
+            field.pack(fill="x", ipady=7)
+            setattr(self, key, field)
+
+        login_actions = tk.Frame(login_card, bg=login_card["bg"])
+        login_actions.pack(fill="x", pady=(14, 0))
+        self.button = ui.button(
+            login_actions, "INICIAR SESIÓN", self.login, variant="primary"
+        )
         self.button.pack(side="left")
-        tk.Button(btns, text="CERRAR SESIÓN", command=self.logout, bg=PANEL,
-                  fg=TEXT, relief="flat", font=("Segoe UI", 10), padx=10, pady=8).pack(side="left", padx=8)
-        tk.Button(btns, text="PREMIUM WEB (BETA)", command=self.open_browser_bridge, bg=PANEL,
-                  fg=ACCENT, relief="flat", font=("Segoe UI", 9, "bold"),
-                  padx=7, pady=8).pack(side="left")
-        self.status = tk.Label(content, text="Cuenta sin iniciar sesión", bg=BG, fg=MUTED,
-                               font=("Segoe UI", 10), anchor="w", justify="left")
-        self.status.pack(fill="x", anchor="w")
-        diagnostic_header = tk.Frame(content, bg=BG)
-        diagnostic_header.pack(fill="x", pady=(7, 3))
-        tk.Label(diagnostic_header, text="REGISTRO DE DIAGNÓSTICO SEGURO", bg=BG, fg=ACCENT,
-                 font=("Segoe UI", 9, "bold")).pack(side="left")
-        self.copy_button = tk.Button(diagnostic_header, text="COPIAR DIAGNÓSTICO SEGURO",
-                                     command=self.copy_diagnostic, bg=PANEL, fg=ACCENT,
-                                     relief="flat", font=("Segoe UI", 9, "bold"), padx=9, pady=4)
+        ui.button(
+            login_actions, "CERRAR SESIÓN", self.logout, variant="secondary"
+        ).pack(side="left", padx=(8, 0))
+
+        # Diagnostic content remains available without occupying primary UI.
+        diag_card = ui.card(diag_tab, padx=16, pady=14)
+        diag_card.pack(fill="both", expand=True, pady=(14, 12))
+        diag_header = tk.Frame(diag_card, bg=diag_card["bg"])
+        diag_header.pack(fill="x", pady=(0, 8))
+        ui.label(diag_header, "Registro seguro", color=TEXT, size=11, bold=True).pack(side="left")
+        self.copy_button = ui.button(
+            diag_header,
+            "COPIAR",
+            self.copy_diagnostic,
+            variant="secondary",
+            compact=True,
+        )
         self.copy_button.pack(side="right")
-        log_frame = tk.Frame(content, bg="#0a111d")
-        log_frame.pack(fill="both", expand=True, pady=(0, 2))
+
+        log_frame = tk.Frame(diag_card, bg="#050c16")
+        log_frame.pack(fill="both", expand=True)
         scrollbar = tk.Scrollbar(log_frame, orient="vertical")
         scrollbar.pack(side="right", fill="y")
-        self.diagnostics = tk.Text(log_frame, bg="#0a111d", fg=MUTED, height=5, relief="flat",
-                                   padx=9, pady=7, font=("Consolas", 9), state="disabled", wrap="word",
-                                   yscrollcommand=scrollbar.set)
+        self.diagnostics = tk.Text(
+            log_frame,
+            bg="#050c16",
+            fg=MUTED,
+            height=10,
+            relief="flat",
+            padx=10,
+            pady=9,
+            font=(ui.MONO, 9),
+            state="disabled",
+            wrap="word",
+            yscrollcommand=scrollbar.set,
+        )
         self.diagnostics.pack(side="left", fill="both", expand=True)
         scrollbar.configure(command=self.diagnostics.yview)
+
         self.safe_report: list[str] = []
         self.diagnostic_lines = 0
-        self._queue_diagnostic({"stage": "ready", "message": "Listo. El registro no almacena correo, contraseña, código 2FA ni respuestas completas."})
-        self.privacy_note = tk.Label(content, text="POST HTTPS JSON a 1VPN. El registro omite valores personales y respuestas completas.",
-                                     fg=MUTED, bg=BG, font=("Segoe UI", 9), justify="left")
-        self.privacy_note.pack(fill="x", anchor="w", pady=(5, 0))
+        self._queue_diagnostic({
+            "stage": "ready",
+            "message": "Listo. El registro no almacena correo, contraseña, código 2FA ni respuestas completas.",
+        })
+        self.privacy_note = ui.label(
+            diag_card,
+            "Diagnóstico limitado a metadatos seguros de la API; nunca guarda valores de credenciales.",
+            color=MUTED,
+            size=8,
+        )
+        self.privacy_note.pack(fill="x", anchor="w", pady=(8, 0))
         content.bind("<Configure>", self._resize_text)
         self.win.after(120, self.poll)
 
@@ -320,14 +422,15 @@ class AccountPanel:
         self.browser_bridge = bridge
         popup = tk.Toplevel(self.win)
         self.bridge_window = popup
-        popup.title("OneTunnel · Vincular cuenta Premium con navegador")
-        popup.geometry("670x365")
-        popup.minsize(620, 340)
+        popup.title("OneTunnel — Vincular Premium")
+        popup.geometry("700x390")
+        popup.minsize(640, 350)
         popup.configure(bg=BG)
+        ui.configure_ttk(popup)
         popup.protocol("WM_DELETE_WINDOW", self._cancel_browser_bridge)
         panel = tk.Frame(popup, bg=BG, padx=22, pady=15)
         panel.pack(fill="both", expand=True)
-        tk.Label(panel, text="VINCULACIÓN PREMIUM CON CONSENTIMIENTO", fg=ACCENT,
+        tk.Label(panel, text="VINCULAR PREMIUM", fg=ACCENT,
                  bg=BG, font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 10))
         instructions = (
             "1. Instala la extensión complementaria local desde browser_companion/.\n"

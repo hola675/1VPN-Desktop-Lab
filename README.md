@@ -1,3 +1,9 @@
+## v0.6 — interfaz Premium: simple por fuera, completa por dentro
+
+La pantalla principal se reorganiza como dashboard: conexión, cuenta, ubicación, IP, servidor y acceso a aplicaciones. Puertos, servidor manual, credenciales técnicas y actividad pasan a secciones desplegables. **Aplicaciones** se divide en uso diario / Motor WFP / Diagnóstico, y **Cuenta** prioriza Premium web sobre Email/2FA. El motor nativo v0.5.5, los gates de firma y la certificación WFP no se debilitan.
+
+Guía: [UI Premium v0.6](docs/UI-V060-PREMIUM.md).
+
 ## v0.5.5 alpha — certificación del PROXY WFP nativo
 
 OneTunnel incluye ahora un probe propio `onetunnel-egress-probe.exe` que usa WinHTTP con `NO_PROXY` y permite demostrar, mediante el botón **CERTIFICAR PROXY (LAB)**, que una conexión HTTPS fue redirigida transparentemente por nuestro callout WFP + relay + SOCKS5 y salió con la misma IP Premium previamente verificada. La prueba es explícita, temporal y retira sus filtros al terminar. No instala ni firma drivers y no sustituye la auditoría pendiente de UDP/DNS/QUIC/IPv6/kill switch.
