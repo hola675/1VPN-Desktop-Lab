@@ -12,7 +12,7 @@ from proxifyre_adapter import (
     save_proxifyre_draft,
 )
 from running_apps import list_running_apps
-from traffic_policy import AppPolicy
+from traffic_policy import AppPolicy, normalize_executable
 
 
 class TestPerExecutableRouting(unittest.TestCase):
@@ -35,9 +35,9 @@ class TestPerExecutableRouting(unittest.TestCase):
     def test_proxy_by_executable_and_direct_exclusion(self):
         config = build_proxifyre_draft(self.policies, 1080)
         route = config["proxies"][0]
-        self.assertEqual(route["appNames"], [str(self.chrome)])
-        self.assertIn(str(self.code), config["excludes"])
-        self.assertNotIn(str(self.blocked), config["excludes"])
+        self.assertEqual(route["appNames"], [normalize_executable(str(self.chrome))])
+        self.assertIn(normalize_executable(str(self.code)), config["excludes"])
+        self.assertNotIn(normalize_executable(str(self.blocked)), config["excludes"])
         self.assertEqual(route["socks5ProxyEndpoint"], "127.0.0.1:1080")
         self.assertEqual(route["supportedProtocols"], ["TCP"])
         self.assertEqual(route["supportedAddressFamilies"], ["IPv4"])
