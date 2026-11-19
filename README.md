@@ -2,7 +2,7 @@
 
 # 1VPN Desktop Lab
 
-**Versión de desarrollo: v0.4.1c (diagnóstico de autenticación) · 2026-11-15**  
+**Versión de desarrollo: v0.5.0-native-alpha (bloqueo WFP propio) · 2026-11-19**  
 **Estado:** proxy HTTP local para redirigir las solicitudes de aplicaciones compatibles hacia un **proxy HTTPS remoto autorizado**, sin usar Wintun/TUN ni modificar la configuración global de Windows.
 
 > **Proyecto experimental independiente. No es un cliente oficial de 1VPN y no equivale a una VPN del sistema.** No incorpora servidores, tokens o credenciales del proveedor. El usuario es responsable de usar servidores y credenciales para los que tenga autorización.
