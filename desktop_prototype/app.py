@@ -19,6 +19,7 @@ from server_catalog import COUNTRIES, ServerEndpoint, refresh_catalogue, snapsho
 from server_selector import AutoSelector
 from account_panel import AccountPanel
 from account_auth import AccountSession
+from access_proxy import AccessProxy
 import ui_theme as ui
 
 BG = ui.BG
@@ -49,11 +50,14 @@ class DesktopApp:
         self.account_panel = None
         self.account_session: AccountSession | None = None
         self._premium_proxy_active = False
+        self._active_access_proxy = None
         self._egress_verified = False
         self._verified_exit_ip: str | None = None
         self.selector: AutoSelector | None = None
         self._scanning = False
         self._manual_host = ""
+        self.access_proxy_enabled = tk.BooleanVar(value=False)
+        self._active_access_proxy: AccessProxy | None = None
         self.location_mode = tk.StringVar(value="auto")
         self.events: queue.Queue[tuple[str, str, int | None]] = queue.Queue()
         self.session = 0
@@ -175,13 +179,14 @@ class DesktopApp:
         engine_card = ui.card(stats, padx=16, pady=13)
         engine_card.grid(row=0, column=2, sticky="nsew", padx=(7, 0))
         ui.label(engine_card, "MOTOR", color=MUTED, size=8, bold=True).pack(anchor="w")
-        ui.label(
+        self.engine_status = ui.label(
             engine_card,
-            "WFP nativo · por aplicación",
+            "WFP nativo · red directa",
             color=ui.SUCCESS,
             size=10,
             bold=True,
-        ).pack(anchor="w", pady=(5, 0))
+        )
+        self.engine_status.pack(anchor="w", pady=(5, 0))
 
         # Primary actions: user goals, not implementation details.
         actions = tk.Frame(shell, bg=BG)
@@ -260,6 +265,69 @@ class DesktopApp:
             )
             self.inputs[key] = field
 
+        access_card = tk.Frame(
+            self.advanced_frame,
+            bg=ui.SURFACE_2,
+            padx=14,
+            pady=12,
+            highlightbackground=ui.BORDER,
+            highlightthickness=1,
+        )
+        access_card.pack(fill="x", pady=(6, 12))
+        access_head = tk.Frame(access_card, bg=access_card["bg"])
+        access_head.pack(fill="x")
+        self.access_proxy_check = tk.Checkbutton(
+            access_head,
+            text="Usar proxy de la red para conectar a 1VPN",
+            variable=self.access_proxy_enabled,
+            command=self._update_access_proxy_ui,
+            bg=access_card["bg"],
+            fg=TEXT,
+            activebackground=access_card["bg"],
+            activeforeground=TEXT,
+            selectcolor=ui.SURFACE_3,
+            font=(ui.FONT, 9, "bold"),
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+        )
+        self.access_proxy_check.pack(side="left")
+        self.access_proxy_status = ui.label(
+            access_head, "DESACTIVADO", color=MUTED, size=8, bold=True
+        )
+        self.access_proxy_status.pack(side="right")
+
+        ui.label(
+            access_card,
+            "Para redes corporativas que exigen HTTP CONNECT antes de salir a Internet. "
+            "Si este proxy falla, OneTunnel no intenta conexión directa.",
+            color=MUTED,
+            size=8,
+            wraplength=900,
+        ).pack(anchor="w", pady=(5, 10))
+
+        access_grid = tk.Frame(access_card, bg=access_card["bg"])
+        access_grid.pack(fill="x")
+        for column in range(4):
+            access_grid.columnconfigure(column, weight=1)
+
+        access_fields = (
+            ("access_host", "Host / IP", "", False),
+            ("access_port", "Puerto", "3128", False),
+            ("access_username", "Usuario (opcional)", "", False),
+            ("access_password", "Clave (opcional)", "", True),
+        )
+        for column, (key, caption, default, secret) in enumerate(access_fields):
+            box = tk.Frame(access_grid, bg=access_grid["bg"])
+            box.grid(row=0, column=column, sticky="ew", padx=(0 if column == 0 else 8, 0))
+            ui.label(box, caption, color=MUTED, size=8, bold=True).pack(anchor="w")
+            field = ui.entry(box, secret=secret, mono=True)
+            field.insert(0, default)
+            field.pack(fill="x", pady=(3, 0), ipady=6)
+            self.inputs[key] = field
+
+        self._update_access_proxy_ui()
+
         advanced_actions = tk.Frame(self.advanced_frame, bg=self.advanced_frame["bg"])
         advanced_actions.pack(fill="x", pady=(4, 0))
         self.copy_btn = ui.button(
@@ -305,6 +373,32 @@ class DesktopApp:
         )
         self.logbox.pack(fill="both", expand=True)
         self._log("OneTunnel listo. Conecta y verifica la salida antes de activar políticas PROXY.")
+
+    def _update_access_proxy_ui(self):
+        enabled = bool(self.access_proxy_enabled.get())
+        if hasattr(self, "access_proxy_status"):
+            self.access_proxy_status.configure(
+                text="ACTIVO · HTTP CONNECT" if enabled else "DESACTIVADO",
+                fg=ui.SUCCESS if enabled else MUTED,
+            )
+
+    def _access_proxy_config(self) -> AccessProxy | None:
+        if not self.access_proxy_enabled.get():
+            return None
+        host = self.inputs["access_host"].get().strip()
+        port_text = self.inputs["access_port"].get().strip()
+        if not host:
+            raise ValueError("Indica el host o IP del proxy de la red")
+        try:
+            port = int(port_text)
+        except ValueError as error:
+            raise ValueError("El puerto del proxy de la red debe ser numérico") from error
+        return AccessProxy(
+            host,
+            port,
+            self.inputs["access_username"].get(),
+            self.inputs["access_password"].get(),
+        ).validated()
 
     def _toggle_advanced(self):
         self._advanced_visible = not self._advanced_visible
@@ -440,6 +534,7 @@ class DesktopApp:
             return
         try:
             region = self._current_mode()
+            access_proxy = self._access_proxy_config()
             username, password = self.inputs["username"].get(), self.inputs["password"].get()
             remote_port = int(self.inputs["port"].get().strip())
             browser_premium = (
@@ -461,9 +556,16 @@ class DesktopApp:
                         username=session.username,
                         password=session.session_token,
                         region=region, preferred="sgp",
+                        access_proxy=access_proxy,
                     )
                 else:
-                    self.selector = AutoSelector(username=username, password=password, region=region, preferred="sgp")
+                    self.selector = AutoSelector(
+                        username=username,
+                        password=password,
+                        region=region,
+                        preferred="sgp",
+                        access_proxy=access_proxy,
+                    )
                 candidates = self.selector.candidates()
                 if not candidates:
                     raise ValueError("No hay servidores disponibles en esta ubicación")
@@ -473,7 +575,14 @@ class DesktopApp:
                 upstream = Upstream(self.inputs["host"].get().strip(), remote_port, username, password).validated()
             port = int(self.inputs["local_port"].get().strip())
             socks_port = int(self.inputs["socks_port"].get().strip())
-            endpoints = self.engine.start(upstream, http_port=port, socks_port=socks_port, selector=self.selector)
+            endpoints = self.engine.start(
+                upstream,
+                http_port=port,
+                socks_port=socks_port,
+                selector=self.selector,
+                access_proxy=access_proxy,
+            )
+            self._active_access_proxy = access_proxy
             self._premium_proxy_active = bool(browser_premium)
             self._egress_verified = False
             self.session += 1
@@ -484,7 +593,19 @@ class DesktopApp:
             self.scan_btn.configure(state="normal" if self.selector else "disabled")
             self.status.configure(text="Escuchando localmente · salida sin verificar", fg=WARN)
             self.address.configure(text="Pendiente de verificar · pulsa VERIFICAR SALIDA")
-            self._log("Ninguna configuración de Windows/Wintun se ha cambiado.")
+            if access_proxy is None:
+                self.engine_status.configure(text="WFP nativo · red directa", fg=ui.SUCCESS)
+                self._log("Conexión a 1VPN: acceso directo desde la red local.")
+            else:
+                self.engine_status.configure(
+                    text=f"WFP nativo · vía proxy {access_proxy.host}:{access_proxy.port}",
+                    fg=ui.ACCENT,
+                )
+                self._log(
+                    f"Conexión a 1VPN: vía proxy de acceso {access_proxy.host}:{access_proxy.port}. "
+                    "Sin fallback directo."
+                )
+            self._log("Ninguna configuración global de Windows/Wintun se ha cambiado.")
             if self.selector is not None:
                 self.scan_servers(refresh=True)
             else:
@@ -593,6 +714,7 @@ class DesktopApp:
         self.copy_btn.configure(state="disabled")
         self.status.configure(text="Desconectado", fg=TEXT)
         self.address.configure(text="IP sin verificar", fg=TEXT)
+        self.engine_status.configure(text="WFP nativo · red directa", fg=ui.SUCCESS)
 
     def close(self):
         # Teardown order: PROXY BFE filters -> ephemeral BLOCK filters ->
