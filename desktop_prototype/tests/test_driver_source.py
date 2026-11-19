@@ -31,6 +31,15 @@ class DriverSourceGuardrails(unittest.TestCase):
         self.assertIn("FwpsQueryConnectionRedirectState0", self.source)
         self.assertIn("FWPS_CONNECTION_NOT_REDIRECTED", self.source)
 
+    def test_driver_fails_closed_on_other_redirector_and_exposes_no_device_name(self):
+        self.assertIn("FWPS_CONNECTION_REDIRECTED_BY_OTHER", self.source)
+        other = self.source.index("FWPS_CONNECTION_REDIRECTED_BY_OTHER")
+        blocked = self.source.index("FWP_ACTION_BLOCK", other)
+        self.assertGreater(blocked, other)
+        self.assertIn("IoCreateDevice(", self.source)
+        self.assertIn("driverObject, 0, NULL", self.source)
+        self.assertNotIn("\\Device\\OneTunnelWfpRedirect", self.source)
+
     def test_driver_preserves_original_destination_and_targets_relay(self):
         for token in (
             "localRedirectContext",
