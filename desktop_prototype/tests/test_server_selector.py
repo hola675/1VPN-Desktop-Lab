@@ -56,6 +56,16 @@ class TestSelector(unittest.TestCase):
         with self.assertRaises(ValueError): AutoSelector(region="premium")
         with self.assertRaises(ValueError): AutoSelector(endpoints=())
 
+    def test_premium_region_only_when_supplied_by_account(self):
+        premium = ServerEndpoint("fra", "premium-frankfurt-https-1.cloudflingcdn.com")
+        selector = AutoSelector(endpoints=(premium,), region="fra", username="web-user", password="fake-token")
+        candidates = selector.candidates()
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].host, premium.hostname)
+        self.assertEqual(candidates[0].password, "fake-token")
+        with self.assertRaises(ValueError):
+            AutoSelector(endpoints=(premium,), region="yto")
+
     def test_set_catalogue_replaces_unlisted(self):
         selector = self.selector({"sgp": 100, "ams": 80, "lax": 150})
         selector.scan()
